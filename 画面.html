@@ -168,6 +168,9 @@
   .mlink{display:block;margin:2px auto 0;border:none;background:transparent;color:var(--sub);cursor:pointer;font-size:12.5px;padding:7px}
   .mresult{font-size:12.5px;text-align:center;min-height:18px;margin:2px 0 8px;line-height:1.7}
   .mresult a{color:var(--accent)} .mwait{color:var(--sub)} .merr{color:#c0392b}
+  .minput{display:block;width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;
+    font:inherit;font-size:15px;color:var(--ink);background:var(--paper);margin-bottom:12px;outline:none}
+  .minput:focus{border-color:var(--accent)}
 
   /* ---- 印刷 ---- */
   #printArea{display:none}
@@ -287,17 +290,20 @@ function renderTabs(){
 function mvBtn(t,fn){var b=document.createElement('button');b.className='mv';b.textContent=t;b.onclick=fn;return b;}
 
 function addTabPrompt(){
-  var name=prompt('新しいタブ名（例：勉強、健康）');if(!name)return;name=name.trim();if(!name)return;
-  var work=confirm('「人ごと」に分けるお仕事タイプにしますか？\n（OK＝人ごと＋デスクワーク、キャンセル＝通常のひな形）');
-  var id=newId();
-  STATE.tabs.push({id:id,name:name,type:work?'work':'normal',order:STATE.tabs.length});
-  STATE.active=id;STATE.editTabs=false;renderTabs();renderView();
-  call('addTab',[id,name,work?'work':'normal']).then(function(r){STATE.nodes=r.nodes;STATE.tabs=r.tabs;renderTabs();renderView();}).catch(failNote);
+  openInput('新しいタブ名', '', '例：勉強、健康', function(name){
+    if(!name)return;
+    var id=newId();
+    STATE.tabs.push({id:id,name:name,type:'normal',order:STATE.tabs.length});
+    STATE.active=id;STATE.editTabs=false;renderTabs();renderView();
+    call('addTab',[id,name,'normal']).then(function(r){STATE.nodes=r.nodes;STATE.tabs=r.tabs;renderTabs();renderView();}).catch(failNote);
+  });
 }
 function editTabName(t){
-  var name=prompt('タブ名を変更',t.name);if(!name)return;name=name.trim();if(!name||name===t.name)return;
-  t.name=name;renderTabs();
-  call('renameTab',[t.id,name]).catch(failNote);
+  openInput('タブ名を変更', t.name, '', function(name){
+    if(!name||name===t.name)return;
+    t.name=name;renderTabs();
+    call('renameTab',[t.id,name]).catch(failNote);
+  });
 }
 function removeTab(t){
   var n=STATE.nodes.filter(function(x){return x.tab===t.id;}).length;
@@ -338,10 +344,10 @@ function renderTab(tabId){
     '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'daily\')">'+markIcon('daily',true)+' 全部定期</button>'+
     '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'today\')">'+markIcon('today',true)+' 全部その日</button>'+
     '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'none\')">解除</button></div>';
-  html+='<div class="tree">'+renderKids(tabId,'',0)+'</div>';
-  if(!all.length) html+='<div class="empty">からっぽです<span class="sw">add below ↓</span></div>';
+  html+='<div class="tree" ondblclick="if(event.target===this)addRoot(\''+jsq(tabId)+'\')">'+renderKids(tabId,'',0)+'</div>';
+  if(!all.length) html+='<div class="empty" ondblclick="addRoot(\''+jsq(tabId)+'\')">からっぽです<span class="sw">ここをダブルクリックで追加</span></div>';
   html+='<div class="addline"><button onclick="addRoot(\''+jsq(tabId)+'\')">＋ 大きな項目を追加</button></div>';
-  html+='<div class="hint">行をタップで編集 ・ Enterで次の行 ・ Tab／Shift+Tabで字下げ<br>右のマークをタップで '+markIcon('daily',true)+'<b style="color:var(--gold)">定期</b>（毎日）／ '+markIcon('today',true)+'<b style="color:var(--rose)">その日</b> を選択（もう一度で解除）・ 上の「タブ全体」で一括 ／ … ボタンで移動・削除</div>';
+  html+='<div class="hint">クリックで編集 ・ <b>ダブルクリックで中に項目を追加</b> ・ Enterで次の行 ・ Tab／Shift+Tabで字下げ<br>右のマークをタップで '+markIcon('daily',true)+'<b style="color:var(--gold)">定期</b>（毎日）／ '+markIcon('today',true)+'<b style="color:var(--rose)">その日</b> を選択（もう一度で解除）・ 上の「タブ全体」で一括 ／ … ボタンで移動・削除</div>';
   html+='</div>';
   v.innerHTML=html;
   focusEditing();
@@ -368,7 +374,7 @@ function nodeRow(n,depth){
   if(editing){
     h+='<div class="label"><input class="ed" id="ed_'+n.id+'" value="'+esc(n.text)+'" maxlength="200"></div>';
   }else{
-    h+='<div class="label" onclick="startEdit(\''+jsq(n.id)+'\')">'+linkify(n.text)+'</div>';
+    h+='<div class="label" title="クリックで編集／ダブルクリックで中に項目を追加" onclick="rowEdit(\''+jsq(n.id)+'\')" ondblclick="rowAddChild(\''+jsq(n.id)+'\')">'+linkify(n.text)+'</div>';
   }
   h+='<button class="mk2 daily'+(n.daily?' on':'')+'" title="定期（毎日くりかえし）／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'daily\')">'+markIcon('daily',n.daily)+'</button>';
   h+='<button class="mk2 today'+(n.today?' on':'')+'" title="その日にすること／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'today\')">'+markIcon('today',n.today)+'</button>';
@@ -412,6 +418,11 @@ function createNode(tabId,parentId,order,text){
   call('addNode',[id,tabId,parentId,order,text]).catch(failNote);
 }
 
+// クリック＝編集 ／ ダブルクリック＝中に項目（小タブ）を追加、を区別する
+var _clk=null;
+function rowEdit(id){ if(_clk){clearTimeout(_clk);_clk=null;} _clk=setTimeout(function(){_clk=null;startEdit(id);},200); }
+function rowAddChild(id){ if(_clk){clearTimeout(_clk);_clk=null;} addChild(id); }
+
 function startEdit(id){ STATE.editingId=id; STATE.menuId=null; renderView(); }
 function focusEditing(){
   if(!STATE.editingId)return;
@@ -428,15 +439,15 @@ function commitEdit(makeSibling,indentDir){
   var id=STATE.editingId;if(!id)return;var n=byId(id);if(!n)return;
   var inp=document.getElementById('ed_'+id);if(!inp)return;
   var t=inp.value.trim();
-  if(t!==n.text){ n.text=t; call('updateNode',[id,'text',t]).catch(failNote); }
-  if(!t && !makeSibling && !indentDir){ // 空のまま離れたら削除
+  if(!t){ // 空なら行を作らない（Enter／Tab／離脱どれでも削除）。空欄が残らないように。
     STATE.nodes=STATE.nodes.filter(function(x){return x.id!==id;});
     STATE.editingId=null; call('deleteNode',[id]).catch(function(){}); renderView(); return;
   }
+  if(t!==n.text){ n.text=t; call('updateNode',[id,'text',t]).catch(failNote); }
   STATE.editingId=null;
   if(indentDir==='in'){ doIndent(n); return; }
   if(indentDir==='out'){ doOutdent(n); return; }
-  if(makeSibling && t){ createNode(n.tab,n.parentId,n.order+0.5,''); reflow(n.tab,n.parentId); return; }
+  if(makeSibling){ createNode(n.tab,n.parentId,n.order+0.5,''); reflow(n.tab,n.parentId); return; }
   renderView();
 }
 
@@ -650,6 +661,27 @@ function printKids(tabId,parentId){
 }
 
 /* ===== 保存（ドキュメント／スプレッドシート）とモーダル ===== */
+// アプリ内テキスト入力（ブラウザのprompt＝URLが出るダイアログの代わり）
+function openInput(title, value, placeholder, onok){
+  STATE._oninput=onok;
+  document.getElementById('modalBox').innerHTML='<div class="mtitle">'+esc(title)+'</div>'+
+    '<input class="minput" id="minput" value="'+esc(value||'')+'" placeholder="'+esc(placeholder||'')+'" maxlength="40">'+
+    '<button class="mbtn rec" onclick="okInput()">決定</button>'+
+    '<button class="mlink" onclick="closeModal()">キャンセル</button>';
+  document.getElementById('modal').classList.add('open');
+  setTimeout(function(){
+    var i=document.getElementById('minput'); if(!i)return;
+    i.focus(); i.select();
+    i.onkeydown=function(e){ if(e.key==='Enter'){e.preventDefault();okInput();} else if(e.key==='Escape'){closeModal();} };
+  },40);
+}
+function okInput(){
+  var i=document.getElementById('minput'); if(!i)return;
+  var v=i.value.trim(), fn=STATE._oninput;
+  STATE._oninput=null; closeModal();
+  if(fn) fn(v);
+}
+
 function openModal(kind){
   if(!STATE.saveScope) STATE.saveScope='tab';
   var box=document.getElementById('modalBox');
