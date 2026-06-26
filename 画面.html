@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ToDo メモ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Shippori+Mincho:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@400;500&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#eae6df; --paper:#f7f5f0; --paper2:#fbfaf6;
+    --ink:#4b453e; --sub:#a59c92; --line:#ded7cc;
+    --accent:#b89a8c; --done:#a9b29a;
+    --gold:#c8a24e; --rose:#c98a93;
+    --shadow:0 6px 22px rgba(75,69,62,.10);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:'Zen Kaku Gothic New',sans-serif;font-size:16px;line-height:1.6}
+  body{padding:max(16px,env(safe-area-inset-top)) 14px calc(40px + env(safe-area-inset-bottom));
+    background-image:radial-gradient(circle at 18% 0%,rgba(255,255,255,.35),transparent 60%)}
+  .wrap{max-width:720px;margin:0 auto}
+
+  header{text-align:center;padding:10px 0 4px}
+  .brand{font-family:'Cormorant Garamond',serif;font-weight:600;font-size:42px;letter-spacing:.06em;line-height:1}
+  .brand .dot{color:var(--accent)}
+  .tagline{font-family:'Caveat',cursive;font-size:20px;color:var(--accent);margin-top:1px}
+  .today{margin-top:6px;font-size:12px;letter-spacing:.22em;color:var(--sub);text-transform:uppercase}
+
+  /* ---- タブ ---- */
+  .tabbar{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;align-items:center;margin:16px 0 4px}
+  .tab{position:relative;border:none;background:transparent;cursor:pointer;color:var(--sub);
+    font-family:'Zen Kaku Gothic New',sans-serif;padding:6px 4px 9px;font-size:14.5px;letter-spacing:.03em;transition:color .2s}
+  .tab .no{font-family:'Cormorant Garamond',serif;font-size:12.5px;font-style:italic;margin-right:5px;opacity:.7}
+  .tab::after{content:"";position:absolute;left:6px;right:6px;bottom:2px;height:2px;border-radius:2px;background:transparent;transition:background .2s}
+  .tab:hover{color:var(--ink)}
+  .tab.active{color:var(--ink)}
+  .tab.active::after{background:var(--tabc,var(--accent))}
+  .tab.daily .no{font-style:normal}
+  .tab.iconbtn{color:var(--accent);font-size:17px;padding:5px 7px}
+  .tab.iconbtn.on{color:var(--ink)}
+  .tabchip{display:inline-flex;align-items:center;gap:2px}
+  .tabchip .mv{border:none;background:transparent;color:var(--sub);cursor:pointer;font-size:12px;padding:2px 3px;border-radius:6px}
+  .tabchip .mv:hover{background:#efeae2;color:var(--ink)}
+
+  /* ---- カード ---- */
+  .card{background:var(--paper);border-radius:18px;box-shadow:var(--shadow);
+    padding:18px 16px 14px;margin-top:12px;border:1px solid rgba(255,255,255,.6)}
+  .card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding-bottom:12px;margin-bottom:4px;border-bottom:1px solid var(--line)}
+  .card-title{font-family:'Shippori Mincho',serif;font-size:20px;font-weight:600;letter-spacing:.04em}
+  .card-title .en{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:13px;color:var(--sub);letter-spacing:.06em;margin-left:8px}
+  .count{font-family:'Cormorant Garamond',serif;font-size:15px;color:var(--sub);white-space:nowrap}
+
+  /* ---- アウトライン ---- */
+  .tree{margin:2px 0}
+  .row{display:flex;align-items:flex-start;gap:6px;padding:4px 2px;border-radius:9px;position:relative}
+  .row:hover{background:#f1ece4}
+  .twist{flex:none;width:15px;height:24px;display:grid;place-items:center;cursor:pointer;color:var(--sub);font-size:10px;user-select:none}
+  .twist.empty{cursor:default;opacity:0}
+  .check{flex:none;width:21px;height:21px;margin-top:1px;border-radius:50%;border:2px solid var(--line);
+    background:var(--paper2);cursor:pointer;display:grid;place-items:center;transition:all .16s}
+  .check:hover{border-color:var(--accent)}
+  .check svg{width:11px;height:11px;stroke:#fff;stroke-width:3.6;fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:0;transform:scale(.4);transition:all .16s}
+  .check.on{background:var(--done);border-color:var(--done)}
+  .check.on svg{opacity:1;transform:scale(1)}
+
+  .label{flex:1;min-width:0;cursor:text;word-break:break-word;padding:1px 2px;line-height:1.5}
+  .row.done > .label{color:var(--sub);text-decoration:line-through;text-decoration-color:var(--line)}
+  .row.sec > .label{font-family:'Shippori Mincho',serif;font-size:17px;letter-spacing:.03em}
+  .row.sub > .label{color:#6f675e}
+  .row.d2 > .label{font-size:15px}
+  .row.d3 > .label,.row.d4 > .label{font-size:13.5px;color:#6f675e}
+  .label a{color:var(--accent)}
+  .label .ed{width:100%;border:none;border-bottom:1px solid var(--accent);background:transparent;font:inherit;color:var(--ink);outline:none;padding:1px 0}
+  .mark{flex:none;border:none;background:transparent;cursor:pointer;color:var(--line);font-size:15px;padding:2px 2px;margin-top:1px;line-height:1}
+  .mark.daily{color:var(--gold)}
+  .mark.today{color:var(--rose)}
+  .menu{flex:none;border:none;background:transparent;cursor:pointer;color:var(--sub);font-size:15px;padding:2px 4px;margin-top:1px;border-radius:6px;line-height:1}
+  .menu:hover,.menu.on{background:#e7e1d7;color:var(--ink)}
+  .toolbar{display:flex;flex-wrap:wrap;gap:4px;padding:4px 2px 8px 26px}
+  .toolbar button{border:1px solid var(--line);background:var(--paper2);cursor:pointer;color:var(--sub);
+    font-size:12px;padding:4px 9px;border-radius:8px;line-height:1.2}
+  .toolbar button:hover{border-color:var(--accent);color:var(--ink)}
+  .kids{margin-left:10px;border-left:1px dashed var(--line);padding-left:6px}
+
+  .addline{margin:8px 0 2px;padding-left:4px}
+  .addline button{border:1px dashed var(--line);background:transparent;color:var(--sub);cursor:pointer;
+    border-radius:10px;padding:6px 14px;font:inherit;font-size:13.5px;letter-spacing:.04em}
+  .addline button:hover{border-color:var(--accent);color:var(--accent)}
+  .empty{text-align:center;color:var(--sub);padding:18px 10px;font-family:'Shippori Mincho',serif;font-size:13.5px}
+  .empty .sw{font-family:'Caveat',cursive;font-size:19px;color:var(--accent);display:block;margin-top:3px}
+  .hint{font-size:11.5px;color:var(--sub);text-align:center;margin-top:10px;letter-spacing:.02em;line-height:1.7}
+
+  /* ---- 今日のチェック ---- */
+  .progress{display:flex;align-items:center;gap:14px;margin:2px 0 8px}
+  .ring{--p:0;flex:none;width:60px;height:60px;border-radius:50%;
+    background:conic-gradient(var(--done) calc(var(--p)*1%),#e7e1d7 0);display:grid;place-items:center}
+  .ring i{width:46px;height:46px;border-radius:50%;background:var(--paper);display:grid;place-items:center;
+    font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--ink);font-style:normal}
+  .pmsg{font-family:'Shippori Mincho',serif;font-size:14px;color:var(--ink)}
+  .pmsg small{display:block;color:var(--sub);font-size:11.5px;letter-spacing:.03em;font-family:'Zen Kaku Gothic New'}
+  .group-label{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:13px;color:var(--sub);
+    letter-spacing:.05em;margin:12px 2px 2px;padding-bottom:3px;border-bottom:1px solid var(--line)}
+  /* 今日のチェック：階層を保ったツリー */
+  .dctx{display:flex;align-items:center;gap:6px;padding:5px 2px 2px;color:var(--sub);font-size:13px}
+  .dctx.s0{font-family:'Shippori Mincho',serif;font-size:14.5px;color:#6f675e;margin-top:4px}
+  .dchk{display:flex;align-items:flex-start;gap:9px;padding:6px 2px}
+  .dchk .ico{flex:none;margin-top:2px;font-size:14px;line-height:1}
+  .dchk .ico.daily{color:var(--gold)} .dchk .ico.today{color:var(--rose)}
+  .dchk span.t{flex:1;word-break:break-word}
+  .dchk.done span.t{color:var(--sub);text-decoration:line-through;text-decoration-color:var(--line)}
+  .dkids{margin-left:13px;border-left:1px dashed var(--line);padding-left:8px}
+  .legend{display:flex;gap:16px;justify-content:center;margin:2px 0 6px;font-size:12px;color:var(--sub)}
+  .legend b{font-weight:400} .legend .g{color:var(--gold)} .legend .r{color:var(--rose)}
+  .tabhint{text-align:center;font-size:11.5px;color:var(--sub);margin:2px 0 0;letter-spacing:.02em}
+
+  #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fbfaf6;padding:9px 19px;border-radius:999px;font-size:13px;letter-spacing:.03em;
+    opacity:0;pointer-events:none;transition:all .3s;z-index:50;box-shadow:var(--shadow)}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .loading{text-align:center;color:var(--sub);padding:50px 0;font-family:'Shippori Mincho',serif}
+
+  footer{text-align:center;margin-top:22px;color:var(--sub);font-size:11px;letter-spacing:.18em}
+  footer .hr{width:40px;height:1px;background:var(--line);margin:0 auto 10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">memo<span class="dot">.</span></div>
+    <div class="tagline">my little check list</div>
+    <div class="today" id="todayLabel"></div>
+  </header>
+  <div class="tabbar" id="tabbar"></div>
+  <div class="tabhint" id="tabhint"></div>
+  <div id="view"><div class="loading">よみこみ中…</div></div>
+  <footer><div class="hr"></div>DAILY &nbsp;·&nbsp; TO DO &nbsp;·&nbsp; MEMO</footer>
+</div>
+<div id="toast"></div>
+
+<script>
+/* ===== 状態 ===== */
+var STATE={today:'',tabs:[],nodes:[],todayChecks:[],active:null,editTabs:false,editingId:null,menuId:null};
+var TAB_COLORS=['#b89a8c','#9bb0b8','#c2a9b4','#a9b29a','#c9b489','#a8a59c'];
+var DAILY='__daily__';
+
+/* ===== サーバ呼び出し（無い場合はMOCKへ） ===== */
+function call(fn,args){
+  return new Promise(function(res,rej){
+    if(window.google&&google.script&&google.script.run){
+      var r=google.script.run.withSuccessHandler(res).withFailureHandler(rej);
+      r[fn].apply(r,args||[]);
+    }else if(window.MOCK&&window.MOCK[fn]){ try{res(window.MOCK[fn].apply(null,args||[]));}catch(e){rej(e);} }
+    else rej(new Error('no backend'));
+  });
+}
+
+/* ===== 初期化 ===== */
+function boot(){
+  call('getData',[null]).then(function(d){
+    STATE.today=d.today;STATE.tabs=d.tabs||[];STATE.nodes=d.nodes||[];STATE.todayChecks=d.todayChecks||[];
+    STATE.active=(STATE.tabs[0]&&STATE.tabs[0].id)||DAILY;
+    renderToday();renderTabs();renderView();
+  }).catch(function(e){document.getElementById('view').innerHTML='<div class="loading">読み込みに失敗しました。<br>'+esc(e.message||e)+'</div>';});
+}
+function renderToday(){
+  var p=(STATE.today||'').split('-'),wd=['日','月','火','水','木','金','土'],label=STATE.today;
+  if(p.length===3){var dt=new Date(+p[0],+p[1]-1,+p[2]);label=p[0]+'.'+p[1]+'.'+p[2]+'  '+wd[dt.getDay()];}
+  document.getElementById('todayLabel').textContent=label;
+}
+
+/* ===== タブ ===== */
+function tabColor(i){return TAB_COLORS[i%TAB_COLORS.length];}
+function tabName(id){var t=STATE.tabs.filter(function(x){return x.id===id;})[0];return t?t.name:'';}
+function renderTabs(){
+  var bar=document.getElementById('tabbar');bar.innerHTML='';
+  STATE.tabs.forEach(function(t,i){
+    var chip=document.createElement('span');chip.className='tabchip';
+    if(STATE.editTabs){
+      var l=mvBtn('◀',function(){moveTab(i,-1);});chip.appendChild(l);
+    }
+    var b=document.createElement('button');
+    b.className='tab'+(STATE.active===t.id?' active':'');
+    b.style.setProperty('--tabc',tabColor(i));
+    b.innerHTML='<span class="no">'+pad2(i+1)+'</span>'+esc(t.name);
+    b.onclick=function(){ if(STATE.editTabs){editTabName(t);} else {STATE.active=t.id;renderTabs();renderView();} };
+    chip.appendChild(b);
+    if(STATE.editTabs){
+      chip.appendChild(mvBtn('▶',function(){moveTab(i,1);}));
+      chip.appendChild(mvBtn('✕',function(){removeTab(t);}));
+    }
+    bar.appendChild(chip);
+  });
+  // 今日のチェック
+  var dt=document.createElement('button');
+  dt.className='tab daily'+(STATE.active===DAILY?' active':'');
+  dt.style.setProperty('--tabc','#c2a9b4');
+  dt.innerHTML='<span class="no">✦</span>今日のチェック';
+  dt.onclick=function(){STATE.active=DAILY;renderTabs();renderView();};
+  bar.appendChild(dt);
+  // ＋追加・✎編集
+  var add=document.createElement('button');add.className='tab iconbtn';add.textContent='＋';add.title='タブを追加';
+  add.onclick=addTabPrompt;bar.appendChild(add);
+  var ed=document.createElement('button');ed.className='tab iconbtn'+(STATE.editTabs?' on':'');ed.textContent='✎';ed.title='タブを編集（並び替え/名前/削除）';
+  ed.onclick=function(){STATE.editTabs=!STATE.editTabs;renderTabs();};bar.appendChild(ed);
+  var hint=document.getElementById('tabhint');
+  if(hint) hint.textContent=STATE.editTabs?'並び替え：◀ ▶ ／ 名前変更：タブをタップ ／ 削除：✕ ／ 終わったら ✎':'';
+}
+function mvBtn(t,fn){var b=document.createElement('button');b.className='mv';b.textContent=t;b.onclick=fn;return b;}
+
+function addTabPrompt(){
+  var name=prompt('新しいタブ名（例：勉強、健康）');if(!name)return;name=name.trim();if(!name)return;
+  var work=confirm('「人ごと」に分けるお仕事タイプにしますか？\n（OK＝人ごと＋デスクワーク、キャンセル＝通常のひな形）');
+  var id=newId();
+  STATE.tabs.push({id:id,name:name,type:work?'work':'normal',order:STATE.tabs.length});
+  STATE.active=id;STATE.editTabs=false;renderTabs();renderView();
+  call('addTab',[id,name,work?'work':'normal']).then(function(r){STATE.nodes=r.nodes;STATE.tabs=r.tabs;renderTabs();renderView();}).catch(failNote);
+}
+function editTabName(t){
+  var name=prompt('タブ名を変更',t.name);if(!name)return;name=name.trim();if(!name||name===t.name)return;
+  t.name=name;renderTabs();
+  call('renameTab',[t.id,name]).catch(failNote);
+}
+function removeTab(t){
+  var n=STATE.nodes.filter(function(x){return x.tab===t.id;}).length;
+  if(!confirm('タブ「'+t.name+'」を削除しますか？'+(n?'\n（中の '+n+' 項目も削除されます）':'')))return;
+  STATE.tabs=STATE.tabs.filter(function(x){return x.id!==t.id;});
+  STATE.nodes=STATE.nodes.filter(function(x){return x.tab!==t.id;});
+  if(STATE.active===t.id)STATE.active=(STATE.tabs[0]&&STATE.tabs[0].id)||DAILY;
+  renderTabs();renderView();
+  call('deleteTab',[t.id]).catch(failNote);
+}
+function moveTab(i,dir){
+  var j=i+dir;if(j<0||j>=STATE.tabs.length)return;
+  var a=STATE.tabs;var tmp=a[i];a[i]=a[j];a[j]=tmp;
+  a.forEach(function(t,k){t.order=k;});
+  renderTabs();
+  call('reorderTabs',[a.map(function(t){return t.id;})]).catch(failNote);
+}
+
+/* ===== ビュー ===== */
+function renderView(){ if(STATE.active===DAILY)renderDaily(); else renderTab(STATE.active); }
+
+function childrenOf(tabId,parentId){
+  return STATE.nodes.filter(function(n){return n.tab===tabId&&n.parentId===parentId;})
+    .sort(function(a,b){return a.order-b.order;});
+}
+function hasKids(n){return STATE.nodes.some(function(x){return x.parentId===n.id;});}
+
+function renderTab(tabId){
+  var t=STATE.tabs.filter(function(x){return x.id===tabId;})[0];
+  if(!t){renderView2('');return;}
+  var all=STATE.nodes.filter(function(n){return n.tab===tabId;});
+  var doneN=all.filter(function(n){return n.done;}).length;
+  var v=document.getElementById('view');
+  var html='<div class="card"><div class="card-head"><div class="card-title">'+esc(t.name)+
+    '<span class="en">'+(t.type==='work'?'work':'list')+'</span></div>'+
+    '<div class="count">'+doneN+' / '+all.length+'</div></div>';
+  html+='<div class="tree">'+renderKids(tabId,'',0)+'</div>';
+  if(!all.length) html+='<div class="empty">からっぽです<span class="sw">add below ↓</span></div>';
+  html+='<div class="addline"><button onclick="addRoot(\''+jsq(tabId)+'\')">＋ 大きな項目を追加</button></div>';
+  html+='<div class="hint">行をタップで編集 ・ Enterで次の行 ・ Tab／Shift+Tabで字下げ<br>右の ☆ をタップ → <b style="color:var(--gold)">★定期</b>（毎日）→ <b style="color:var(--rose)">❀その日</b> → なし ／ … ボタンで移動・削除</div>';
+  html+='</div>';
+  v.innerHTML=html;
+  focusEditing();
+}
+
+function renderKids(tabId,parentId,depth){
+  var kids=childrenOf(tabId,parentId);
+  if(!kids.length)return '';
+  var h='';
+  kids.forEach(function(n){
+    h+=nodeRow(n,depth);
+    if(hasKids(n)&&!n.collapsed) h+='<div class="kids">'+renderKids(tabId,n.id,depth+1)+'</div>';
+  });
+  return h;
+}
+
+function nodeRow(n,depth){
+  var kids=hasKids(n);
+  var editing=STATE.editingId===n.id;
+  var cls='row'+(n.done?' done':'')+(depth===0?' sec':depth===1?' sub':' d'+Math.min(depth,4));
+  var h='<div class="'+cls+'" data-id="'+n.id+'">';
+  h+='<div class="twist'+(kids?'':' empty')+'" onclick="toggleCollapse(\''+jsq(n.id)+'\')">'+(kids?(n.collapsed?'▶':'▼'):'•')+'</div>';
+  h+='<div class="check'+(n.done?' on':'')+'" onclick="toggleDone(\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>';
+  if(editing){
+    h+='<div class="label"><input class="ed" id="ed_'+n.id+'" value="'+esc(n.text)+'" maxlength="200"></div>';
+  }else{
+    h+='<div class="label" onclick="startEdit(\''+jsq(n.id)+'\')">'+linkify(n.text)+'</div>';
+  }
+  var mk=n.daily?'mark daily':n.today?'mark today':'mark';
+  var mglyph=n.daily?'★':n.today?'❀':'☆';
+  var mtitle=n.daily?'定期（毎日くりかえし）':n.today?'その日にすること':'タップで 定期★→その日❀→なし';
+  h+='<button class="'+mk+'" title="'+mtitle+'" onclick="cycleMark(\''+jsq(n.id)+'\')">'+mglyph+'</button>';
+  h+='<button class="menu'+(STATE.menuId===n.id?' on':'')+'" title="操作" onclick="toggleMenu(\''+jsq(n.id)+'\')">⋯</button>';
+  h+='</div>';
+  if(STATE.menuId===n.id){
+    h+='<div class="toolbar">'+
+       '<button onclick="addChild(\''+jsq(n.id)+'\')">＋ 子項目</button>'+
+       '<button onclick="setMark(\''+jsq(n.id)+'\',\'daily\')">★ 定期</button>'+
+       '<button onclick="setMark(\''+jsq(n.id)+'\',\'today\')">❀ その日</button>'+
+       '<button onclick="moveNode(\''+jsq(n.id)+'\',-1)">↑ 上へ</button>'+
+       '<button onclick="moveNode(\''+jsq(n.id)+'\',1)">↓ 下へ</button>'+
+       '<button onclick="indentNode(\''+jsq(n.id)+'\')">⇥ 字下げ</button>'+
+       '<button onclick="outdentNode(\''+jsq(n.id)+'\')">⇤ 字上げ</button>'+
+       '<button onclick="removeNode(\''+jsq(n.id)+'\')">✕ 削除</button>'+
+       '</div>';
+  }
+  return h;
+}
+function toggleMenu(id){ STATE.menuId=(STATE.menuId===id?null:id); renderView(); }
+
+/* ===== ノード操作 ===== */
+function byId(id){return STATE.nodes.filter(function(n){return n.id===id;})[0];}
+function siblings(n){return childrenOf(n.tab,n.parentId);}
+
+function addRoot(tabId){ createNode(tabId,'',endOrder(tabId,''),''); }
+function addChild(id){ var n=byId(id);if(!n)return; n.collapsed=false; createNode(n.tab,n.id,endOrder(n.tab,n.id),''); }
+function endOrder(tabId,parentId){ var s=childrenOf(tabId,parentId);return s.length?s[s.length-1].order+1:0; }
+
+function createNode(tabId,parentId,order,text){
+  var id=newId();
+  STATE.nodes.push({id:id,tab:tabId,parentId:parentId,text:text,order:order,done:false,collapsed:false,daily:false,today:false,note:''});
+  STATE.editingId=id;
+  renderView();
+  call('addNode',[id,tabId,parentId,order,text]).catch(failNote);
+}
+
+function startEdit(id){ STATE.editingId=id; STATE.menuId=null; renderView(); }
+function focusEditing(){
+  if(!STATE.editingId)return;
+  var inp=document.getElementById('ed_'+STATE.editingId);if(!inp)return;
+  inp.focus();var l=inp.value.length;inp.setSelectionRange(l,l);
+  inp.onkeydown=function(e){
+    if(e.key==='Enter'){ e.preventDefault(); commitEdit(true); }
+    else if(e.key==='Escape'){ STATE.editingId=null; renderView(); }
+    else if(e.key==='Tab'){ e.preventDefault(); commitEdit(false, e.shiftKey?'out':'in'); }
+  };
+  inp.onblur=function(){ setTimeout(function(){ if(document.getElementById('ed_'+id)===inp) commitEdit(false); },120); };
+}
+function commitEdit(makeSibling,indentDir){
+  var id=STATE.editingId;if(!id)return;var n=byId(id);if(!n)return;
+  var inp=document.getElementById('ed_'+id);if(!inp)return;
+  var t=inp.value.trim();
+  if(t!==n.text){ n.text=t; call('updateNode',[id,'text',t]).catch(failNote); }
+  if(!t && !makeSibling && !indentDir){ // 空のまま離れたら削除
+    STATE.nodes=STATE.nodes.filter(function(x){return x.id!==id;});
+    STATE.editingId=null; call('deleteNode',[id]).catch(function(){}); renderView(); return;
+  }
+  STATE.editingId=null;
+  if(indentDir==='in'){ doIndent(n); return; }
+  if(indentDir==='out'){ doOutdent(n); return; }
+  if(makeSibling && t){ createNode(n.tab,n.parentId,n.order+0.5,''); reflow(n.tab,n.parentId); return; }
+  renderView();
+}
+
+function toggleDone(id){var n=byId(id);if(!n)return;n.done=!n.done;renderView();call('updateNode',[id,'done',n.done]).catch(failNote);}
+function toggleCollapse(id){var n=byId(id);if(!n||!hasKids(n))return;n.collapsed=!n.collapsed;renderView();call('updateNode',[id,'collapsed',n.collapsed]).catch(failNote);}
+// マークを切替：定期(★)↔その日(❀)は排他。インラインは none→定期→その日→none を巡回。
+function setMark(id,kind){
+  var n=byId(id);if(!n)return;
+  if(kind==='daily'){ n.daily=!n.daily; if(n.daily)n.today=false; }
+  else { n.today=!n.today; if(n.today)n.daily=false; }
+  STATE.menuId=null; renderView();
+  call('updateNode',[id,'daily',n.daily]).catch(failNote);
+  call('updateNode',[id,'today',n.today]).catch(failNote);
+  toast(n.daily?'★定期に入れました':n.today?'❀その日に入れました':'マークを外しました');
+}
+function cycleMark(id){
+  var n=byId(id);if(!n)return;
+  var next = (!n.daily&&!n.today)?'daily' : (n.daily?'today':'none');
+  n.daily=(next==='daily'); n.today=(next==='today'); renderView();
+  call('updateNode',[id,'daily',n.daily]).catch(failNote);
+  call('updateNode',[id,'today',n.today]).catch(failNote);
+  toast(n.daily?'★定期に入れました':n.today?'❀その日に入れました':'マークを外しました');
+}
+
+function moveNode(id,dir){
+  var n=byId(id);if(!n)return;var sib=siblings(n);var i=sib.indexOf(n);var j=i+dir;
+  if(j<0||j>=sib.length)return;
+  var a=sib[i].order, b=sib[j].order; sib[i].order=b; sib[j].order=a;
+  renderView();
+  call('applyMoves',[[{id:sib[i].id,order:sib[i].order},{id:sib[j].id,order:sib[j].order}]]).catch(failNote);
+}
+function indentNode(id){var n=byId(id);if(n)doIndent(n);}
+function outdentNode(id){var n=byId(id);if(n)doOutdent(n);}
+function doIndent(n){
+  var sib=siblings(n);var i=sib.indexOf(n);if(i<=0)return; // 直前の兄弟の子になる
+  var prev=sib[i-1]; prev.collapsed=false;
+  n.parentId=prev.id; n.order=endOrder(n.tab,prev.id);
+  renderView();
+  call('applyMoves',[[{id:n.id,parentId:n.parentId,order:n.order}]]).then(function(){return call('updateNode',[prev.id,'collapsed',false]);}).catch(failNote);
+}
+function doOutdent(n){
+  if(!n.parentId)return; var parent=byId(n.parentId);if(!parent)return; // 親の兄弟になる
+  n.parentId=parent.parentId; n.order=parent.order+0.5;
+  renderView(); reflow(n.tab,n.parentId);
+  call('applyMoves',[[{id:n.id,parentId:n.parentId,order:n.order}]]).catch(failNote);
+}
+// 並び順の小数を整数に均す（任意・サーバにも反映）
+function reflow(tabId,parentId){
+  var s=childrenOf(tabId,parentId);var ups=[];
+  s.forEach(function(x,k){ if(x.order!==k){x.order=k;ups.push({id:x.id,order:k});} });
+  if(ups.length) call('applyMoves',[ups]).catch(function(){});
+}
+function removeNode(id){
+  var n=byId(id);if(!n)return;
+  var kids=hasKids(n);
+  if(!confirm('「'+(n.text||'(空)')+'」'+(kids?'と、その中身も':'')+'を削除しますか？'))return;
+  var kill={};(function col(x){kill[x]=true;STATE.nodes.filter(function(c){return c.parentId===x;}).forEach(function(c){col(c.id);});})(id);
+  STATE.nodes=STATE.nodes.filter(function(x){return !kill[x.id];});
+  STATE.todayChecks=STATE.todayChecks.filter(function(t){return !kill[t];});
+  STATE.menuId=null;
+  renderView();
+  call('deleteNode',[id]).catch(failNote);
+}
+
+/* ===== 今日のチェック ===== */
+function pathOf(n){ // 祖先のテキストを「タブ › 親 › …」で
+  var parts=[];var cur=n;var guard=0;
+  while(cur&&cur.parentId&&guard++<20){var p=byId(cur.parentId);if(!p)break;parts.unshift(p.text);cur=p;}
+  parts.unshift(tabName(n.tab));
+  return parts.filter(Boolean).join(' › ');
+}
+function isFlagged(n){ return n.daily||n.today; }
+function dailyDone(n){ return n.daily ? STATE.todayChecks.indexOf(n.id)>=0 : !!n.done; }
+function subtreeHasFlag(n){ if(isFlagged(n))return true; return STATE.nodes.some(function(c){return c.parentId===n.id&&subtreeHasFlag(c);}); }
+function renderDaily(){
+  var flagged=STATE.nodes.filter(isFlagged);
+  var total=flagged.length;
+  var doneN=flagged.filter(dailyDone).length;
+  var pct=total?Math.round(doneN/total*100):0;
+  var msg=total===0?'まだマークした項目がありません':doneN===total?'すべて完了！おつかれさまでした':'あと '+(total-doneN)+' 件です';
+  var v=document.getElementById('view');
+  var html='<div class="card"><div class="card-head"><div class="card-title">今日のチェック<span class="en">today\'s check</span></div>'+
+    '<div class="count">'+doneN+' / '+total+'</div></div>';
+  html+='<div class="progress"><div class="ring" style="--p:'+pct+'"><i>'+pct+'%</i></div>'+
+    '<div class="pmsg">'+esc(msg)+'<small>各項目のマークを押すと、ここに集まります</small></div></div>';
+  html+='<div class="legend"><span><b class="g">★</b> 定期（毎日リセット）</span><span><b class="r">❀</b> その日（一度きり）</span></div>';
+  if(total===0){
+    html+='<div class="empty">項目の右の ☆ を押して ★定期 / ❀その日 を付けてください<span class="sw">tap a mark ☆</span></div>';
+  }else{
+    STATE.tabs.forEach(function(t){
+      if(!STATE.nodes.some(function(n){return n.tab===t.id&&isFlagged(n);}))return;
+      html+='<div class="group-label">'+esc(t.name)+'</div>'+renderDailyTree(t.id,'',0);
+    });
+  }
+  html+='</div>';
+  v.innerHTML=html;
+}
+function renderDailyTree(tabId,parentId,depth){
+  var kids=childrenOf(tabId,parentId);
+  var h='';
+  kids.forEach(function(n){
+    if(!subtreeHasFlag(n))return;
+    if(isFlagged(n)) h+=dailyCheckRow(n);
+    else h+='<div class="dctx s'+Math.min(depth,1)+'">'+linkify(n.text)+'</div>';
+    var sub=renderDailyTree(tabId,n.id,depth+1);
+    if(sub) h+='<div class="dkids">'+sub+'</div>';
+  });
+  return h;
+}
+function dailyCheckRow(n){
+  var on=dailyDone(n);
+  var ico=n.daily?'<span class="ico daily">★</span>':'<span class="ico today">❀</span>';
+  return '<div class="dchk'+(on?' done':'')+'">'+
+    '<div class="check'+(on?' on':'')+'" onclick="toggleDailyCheck(\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>'+
+    ico+'<span class="t">'+linkify(n.text)+'</span></div>';
+}
+function toggleDailyCheck(id){
+  var n=byId(id);if(!n)return;
+  if(n.daily){
+    var i=STATE.todayChecks.indexOf(id);var now=i<0;
+    if(now)STATE.todayChecks.push(id);else STATE.todayChecks.splice(i,1);
+    call('setDailyCheck',[id,STATE.today,now]).catch(failNote);
+  }else{
+    n.done=!n.done;
+    call('updateNode',[id,'done',n.done]).catch(failNote);
+  }
+  renderDaily();
+  var flagged=STATE.nodes.filter(isFlagged);
+  if(flagged.length&&flagged.every(dailyDone)) toast('すべて完了！おつかれさまでした ✦');
+}
+
+/* ===== 補助 ===== */
+function renderView2(h){document.getElementById('view').innerHTML=h;}
+function failNote(){toast('保存に失敗しました');}
+var _tt;function toast(m){var el=document.getElementById('toast');el.textContent=m;el.classList.add('show');clearTimeout(_tt);_tt=setTimeout(function(){el.classList.remove('show');},2200);}
+function pad2(n){return (n<10?'0':'')+n;}
+function newId(){return 'C'+Date.now().toString(36)+Math.floor(Math.random()*1e6).toString(36);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function jsq(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+function linkify(s){
+  var e=esc(s);
+  return e.replace(/(https?:\/\/[^\s　]+)/g,function(u){return '<a href="'+u+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">'+u+'</a>';});
+}
+boot();
+</script>
+</body>
+</html>
