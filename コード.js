@@ -71,6 +71,7 @@ function getData(dateStr) {
   ensureSeed_();
   ensureSubscriptionTab_();   // 「定期購入」大タブが無ければ一度だけ用意（既にあれば何もしない）
   ensurePrioritySheet_();     // 「優先順位」シートが無ければ一度だけ用意（AI連携の土台）
+  ensurePolicySheet_();       // 「方針」シート（全体の優先ルール）が無ければ一度だけ用意
   return {
     today: today,
     tabs: readTabs_(),
@@ -486,6 +487,43 @@ function ensureSubscriptionTab_() {
     if (rows.length) nsh.getRange(nsh.getLastRow() + 1, 1, rows.length, 10).setValues(rows);
   });
   props.setProperty('SUBS_TAB_DONE', '1');
+}
+
+// ===== 方針シート（全体の優先ルール）=======================================
+// 個々の優先度ではなく「全体としてどう並べるか」のルールを自由文で持つ。
+// AI（Claude Code等）はこれを最優先で読み、並び順の方針として使う。自由に編集可。
+const POLICY_RULES = [
+  ['1. 「連絡」は最優先（全タブの連絡を最初に）'],
+  ['2. 期限があるものを先に'],
+  ['3. 生活に関わる買い出しを先に（定期購入・生活の購入）'],
+  ['4. 高優先が片付いたら「計画」を立てる'],
+  ['5. エリアの順番：生活 → ファイナンス → 活動 → バドミントン'],
+];
+
+function ensurePolicySheet_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('POLICY_SHEET_DONE')) return;
+  if (getSS_().getSheetByName('方針')) { props.setProperty('POLICY_SHEET_DONE', '1'); return; }
+  withLock_(function () { if (!getSS_().getSheetByName('方針')) createPolicySheet_(); });
+  props.setProperty('POLICY_SHEET_DONE', '1');
+}
+
+function createPolicySheet_() {
+  const ss = getSS_();
+  const sh = ss.insertSheet('方針');
+  sh.getRange(1, 1).setValue('AIへの全体方針（優先順位ルール）— 上から順に優先。自由に編集できます').setFontWeight('bold').setBackground('#efece6');
+  sh.getRange(2, 1, POLICY_RULES.length, 1).setValues(POLICY_RULES);
+  sh.setColumnWidth(1, 560);
+  return POLICY_RULES.length;
+}
+
+// 【手動でも実行可】方針シートを用意する。既にあれば中身は触らない。
+function setupPolicySheet() {
+  return withLock_(function () {
+    if (getSS_().getSheetByName('方針')) return '「方針」シートは既にあります（中身は変更していません）。';
+    createPolicySheet_();
+    return '「方針」シートを作成しました。';
+  });
 }
 
 // ===== 優先順位シート（AI連携の土台）=======================================
