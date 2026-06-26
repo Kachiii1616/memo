@@ -276,6 +276,16 @@ function exportToSheet(scope, tabId) {
   return { url: ss.getUrl(), name: ss.getName() };
 }
 
+// 【一度だけ実行】保存機能（ドキュメント/スプレッドシート作成）の権限を承認する。
+// GASエディタで関数 authorizeExports を選んで ▶実行 → 権限ダイアログで許可。
+// 確認用のテストファイルは作成後すぐゴミ箱へ入れる。
+function authorizeExports() {
+  const d = DocumentApp.create('memo 権限確認（消してOK）'); const did = d.getId(); d.saveAndClose();
+  const s = SpreadsheetApp.create('memo 権限確認（消してOK）'); const sid = s.getId();
+  try { DriveApp.getFileById(did).setTrashed(true); DriveApp.getFileById(sid).setTrashed(true); } catch (e) {}
+  return '保存機能の権限を承認しました（テストファイルはゴミ箱へ）。アプリの「保存」が使えます。';
+}
+
 // scope に応じてタブと、その入れ子項目を深さ付き・並び順で集める
 function collectExport_(scope, tabId) {
   const tabs = readTabs_();
