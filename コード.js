@@ -492,7 +492,7 @@ function ensureSubscriptionTab_() {
 // memo のデータが入っているのと同じスプレッドシートに「優先順位」シートを足す。
 // 大タブ／中タブ（各タブ直下の項目）を最初から埋めておき、優先度・期限・背景などは
 // あとから手入力してもらう想定。AI（Claude Code等）はこの表を読んで段取りを決める。
-const PRIORITY_HEADERS = ['大タブ', '中タブ', '優先度', '期限', '目的・背景', '進め方の希望', 'AIに任せたいこと'];
+const PRIORITY_HEADERS = ['大タブ', '中タブ', '小タブ', '優先度', '期限', '目的・背景', '進め方の希望', 'AIに任せたいこと'];
 
 function ensurePrioritySheet_() {
   const props = PropertiesService.getScriptProperties();
@@ -512,12 +512,26 @@ function createPrioritySheet_() {
   tabs.forEach(function (t) {
     const mids = nodes.filter(function (n) { return n.tab === t.id && !n.parentId; })
       .sort(function (a, b) { return a.order - b.order; });
-    if (!mids.length) { rows.push([t.name, '', '', '', '', '', '']); }
-    mids.forEach(function (n) { rows.push([t.name, n.text, '', '', '', '', '']); });
+    if (!mids.length) { rows.push([t.name, '', '', '', '', '', '', '']); }
+    mids.forEach(function (n) { rows.push([t.name, n.text, '', '', '', '', '', '']); }); // 小タブは空欄（必要な行だけ手入力）
   });
   if (rows.length) sh.getRange(2, 1, rows.length, PRIORITY_HEADERS.length).setValues(rows);
   sh.autoResizeColumns(1, PRIORITY_HEADERS.length);
   return rows.length;
+}
+
+// 【既存シートに後付け】「優先順位」シートの中タブの右に「小タブ」列を追加する。
+// 既に入力済みのデータは消さずに、列だけ差し込む。すでに小タブ列があれば何もしない。
+function addKotabColumn() {
+  return withLock_(function () {
+    const sh = getSS_().getSheetByName('優先順位');
+    if (!sh) return '「優先順位」シートがありません。先に setupPrioritySheet を実行してください。';
+    const head = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0];
+    if (head.indexOf('小タブ') >= 0) return '「小タブ」列はすでにあります。';
+    sh.insertColumnAfter(2);  // 中タブ（2列目）の右に1列挿入
+    sh.getRange(1, 3).setValue('小タブ').setFontWeight('bold').setBackground('#efece6');
+    return '「小タブ」列を中タブの右に追加しました。';
+  });
 }
 
 // 【手動でも実行可】優先順位シートを用意する。既にあれば中身は触らない。
