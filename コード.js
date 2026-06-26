@@ -70,6 +70,7 @@ function getData(dateStr) {
   const today = dateStr || todayStr_();
   ensureSeed_();
   ensureSubscriptionTab_();   // 「定期購入」大タブが無ければ一度だけ用意（既にあれば何もしない）
+  ensurePrioritySheet_();     // 「優先順位」シートが無ければ一度だけ用意（AI連携の土台）
   return {
     today: today,
     tabs: readTabs_(),
@@ -485,6 +486,47 @@ function ensureSubscriptionTab_() {
     if (rows.length) nsh.getRange(nsh.getLastRow() + 1, 1, rows.length, 10).setValues(rows);
   });
   props.setProperty('SUBS_TAB_DONE', '1');
+}
+
+// ===== 優先順位シート（AI連携の土台）=======================================
+// memo のデータが入っているのと同じスプレッドシートに「優先順位」シートを足す。
+// 大タブ／中タブ（各タブ直下の項目）を最初から埋めておき、優先度・期限・背景などは
+// あとから手入力してもらう想定。AI（Claude Code等）はこの表を読んで段取りを決める。
+const PRIORITY_HEADERS = ['大タブ', '中タブ', '優先度', '期限', '目的・背景', '進め方の希望', 'AIに任せたいこと'];
+
+function ensurePrioritySheet_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('PRIORITY_SHEET_DONE')) return;
+  if (getSS_().getSheetByName('優先順位')) { props.setProperty('PRIORITY_SHEET_DONE', '1'); return; }
+  withLock_(function () { if (!getSS_().getSheetByName('優先順位')) createPrioritySheet_(); });
+  props.setProperty('PRIORITY_SHEET_DONE', '1');
+}
+
+function createPrioritySheet_() {
+  const ss = getSS_();
+  const sh = ss.insertSheet('優先順位');
+  sh.getRange(1, 1, 1, PRIORITY_HEADERS.length).setValues([PRIORITY_HEADERS]).setFontWeight('bold').setBackground('#efece6');
+  sh.setFrozenRows(1);
+  const tabs = readTabs_(), nodes = readNodes_();
+  const rows = [];
+  tabs.forEach(function (t) {
+    const mids = nodes.filter(function (n) { return n.tab === t.id && !n.parentId; })
+      .sort(function (a, b) { return a.order - b.order; });
+    if (!mids.length) { rows.push([t.name, '', '', '', '', '', '']); }
+    mids.forEach(function (n) { rows.push([t.name, n.text, '', '', '', '', '']); });
+  });
+  if (rows.length) sh.getRange(2, 1, rows.length, PRIORITY_HEADERS.length).setValues(rows);
+  sh.autoResizeColumns(1, PRIORITY_HEADERS.length);
+  return rows.length;
+}
+
+// 【手動でも実行可】優先順位シートを用意する。既にあれば中身は触らない。
+function setupPrioritySheet() {
+  return withLock_(function () {
+    if (getSS_().getSheetByName('優先順位')) return '「優先順位」シートは既にあります（中身は変更していません）。';
+    const n = createPrioritySheet_();
+    return '「優先順位」シートを作成しました（' + n + '行）。スプレッドシートの下のタブで開けます。';
+  });
 }
 
 // 【メンテ用・これを実行】「定期購入」を独立した“大タブ”として確実に用意する。
