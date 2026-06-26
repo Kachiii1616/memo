@@ -232,6 +232,71 @@ function setDailyCheck(id, dateStr, done) {
   });
 }
 
+// ===== 保存（エクスポート）==================================================
+// scope: 'all'（全タブ）/ 'tab'（指定タブ）。tabId は scope==='tab' のとき必須。
+// 戻り値 {url, name}。フロントでリンク表示する。
+
+// Googleドキュメントに保存（おすすめ：チェックリストとして読みやすい・印刷も綺麗）
+function exportToDoc(scope, tabId) {
+  const data = collectExport_(scope, tabId);
+  const doc = DocumentApp.create('memo チェックリスト ' + data.stamp);
+  const body = doc.getBody();
+  body.appendParagraph('memo  チェックリスト').setHeading(DocumentApp.ParagraphHeading.TITLE);
+  body.appendParagraph(data.stamp).setHeading(DocumentApp.ParagraphHeading.SUBTITLE);
+  data.tabs.forEach(function (t) {
+    body.appendParagraph(t.name).setHeading(DocumentApp.ParagraphHeading.HEADING1);
+    t.items.forEach(function (it) {
+      const glyph = it.done ? '☑ ' : '☐ ';
+      const mark = it.daily ? '  〔定期〕' : it.today ? '  〔その日〕' : '';
+      const p = body.appendParagraph(glyph + it.text + mark);
+      p.setHeading(DocumentApp.ParagraphHeading.NORMAL);
+      p.setIndentStart(it.depth * 18).setIndentFirstLine(it.depth * 18).setSpacingAfter(2);
+    });
+  });
+  doc.saveAndClose();
+  return { url: doc.getUrl(), name: doc.getName() };
+}
+
+// スプレッドシートに保存（表で扱いたいとき向け）
+function exportToSheet(scope, tabId) {
+  const data = collectExport_(scope, tabId);
+  const ss = SpreadsheetApp.create('memo チェックリスト ' + data.stamp);
+  const sh = ss.getSheets()[0].setName('チェックリスト');
+  const rows = [['タブ', '項目', 'マーク', '完了']];
+  data.tabs.forEach(function (t) {
+    t.items.forEach(function (it) {
+      const indent = new Array(it.depth + 1).join('　'); // 全角スペースで字下げ
+      rows.push([t.name, indent + it.text, it.daily ? '定期' : it.today ? 'その日' : '', it.done ? '✓' : '']);
+    });
+  });
+  sh.getRange(1, 1, rows.length, 4).setValues(rows);
+  sh.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#efece6');
+  sh.setFrozenRows(1);
+  sh.autoResizeColumns(1, 4);
+  return { url: ss.getUrl(), name: ss.getName() };
+}
+
+// scope に応じてタブと、その入れ子項目を深さ付き・並び順で集める
+function collectExport_(scope, tabId) {
+  const tabs = readTabs_();
+  const nodes = readNodes_();
+  const chosen = (scope === 'tab') ? tabs.filter(function (t) { return t.id === String(tabId); }) : tabs;
+  const byParent = {};
+  nodes.forEach(function (n) { const k = n.tab + '|' + n.parentId; (byParent[k] = byParent[k] || []).push(n); });
+  Object.keys(byParent).forEach(function (k) { byParent[k].sort(function (a, b) { return a.order - b.order; }); });
+  const out = chosen.map(function (t) {
+    const items = [];
+    (function walk(parentId, depth) {
+      (byParent[t.id + '|' + parentId] || []).forEach(function (n) {
+        items.push({ text: n.text, depth: depth, done: n.done, daily: n.daily, today: n.today });
+        walk(n.id, depth + 1);
+      });
+    })('', 0);
+    return { name: t.name, items: items };
+  });
+  return { tabs: out, stamp: todayStr_() };
+}
+
 // ===== 読み込み =============================================================
 function readTabs_() {
   const sh = tabSheet_();

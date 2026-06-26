@@ -79,10 +79,9 @@
   .mark.today{color:var(--rose)}
   /* ★定期 / ❀その日 を横並びで選択（排他・もう一度で解除） */
   .mk2{flex:none;border:none;background:transparent;cursor:pointer;color:var(--line);
-    font-size:15px;padding:2px 3px;margin-top:1px;line-height:1;border-radius:6px;transition:color .15s,transform .15s}
-  .mk2:hover{color:var(--sub);background:#efece6}
-  .mk2.daily.on{color:var(--gold);transform:scale(1.12)}
-  .mk2.today.on{color:var(--rose);transform:scale(1.12)}
+    padding:2px 3px;margin-top:1px;line-height:0;border-radius:6px;transition:color .15s,transform .15s}
+  .mk2:hover{color:var(--accent);background:#efece6}
+  .mk2.on{transform:scale(1.1)}
   .menu{flex:none;border:none;background:transparent;cursor:pointer;color:var(--sub);font-size:15px;padding:2px 4px;margin-top:1px;border-radius:6px;line-height:1}
   .menu:hover,.menu.on{background:#e7e1d7;color:var(--ink)}
   /* タブ一括選択バー */
@@ -136,6 +135,61 @@
 
   footer{text-align:center;margin-top:22px;color:var(--sub);font-size:11px;letter-spacing:.18em}
   footer .hr{width:40px;height:1px;background:var(--line);margin:0 auto 10px}
+
+  /* ---- 手書き線画マーク（定期＝きらめき／その日＝小花） ---- */
+  .mki{width:16px;height:16px;display:inline-block;vertical-align:-3px;
+    stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+
+  /* ---- ツールバー（印刷・保存） ---- */
+  .tools{display:flex;gap:8px;justify-content:center;margin:8px 0 0}
+  .tbtn{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:var(--paper2);
+    cursor:pointer;color:var(--sub);font-size:12.5px;padding:5px 15px;border-radius:999px;letter-spacing:.08em;
+    font-family:'Shippori Mincho',serif;transition:all .18s}
+  .tbtn:hover{border-color:var(--accent);color:var(--ink)}
+  .tbtn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+
+  /* ---- モーダル ---- */
+  .modal-bg{position:fixed;inset:0;background:rgba(75,69,62,.34);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
+  .modal-bg.open{display:flex}
+  .modal{background:var(--paper2);border-radius:18px;box-shadow:var(--shadow);max-width:380px;width:100%;
+    padding:22px 20px 14px;border:1px solid rgba(255,255,255,.7)}
+  .mtitle{font-family:'Shippori Mincho',serif;font-size:19px;text-align:center;margin-bottom:6px;letter-spacing:.06em}
+  .mdesc{font-size:12.5px;color:var(--sub);line-height:1.7;margin-bottom:14px;text-align:center}
+  .mdesc b{color:var(--accent);font-weight:500}
+  .mscope{font-size:12px;color:var(--sub);display:flex;gap:6px;align-items:center;justify-content:center;margin-bottom:13px}
+  .chip{border:1px solid var(--line);background:var(--paper);cursor:pointer;color:var(--sub);font-size:12px;padding:4px 13px;border-radius:999px}
+  .chip.on{border-color:var(--accent);color:var(--ink);background:#f3ece4}
+  .mbtn{display:block;width:100%;border:1px solid var(--line);background:var(--paper);cursor:pointer;color:var(--ink);
+    font-size:14px;padding:11px 14px;border-radius:12px;margin-bottom:9px;font-family:'Shippori Mincho',serif;letter-spacing:.03em}
+  .mbtn:hover{border-color:var(--accent)}
+  .mbtn.rec{border-color:var(--accent);background:#f3ece4}
+  .mlink{display:block;margin:2px auto 0;border:none;background:transparent;color:var(--sub);cursor:pointer;font-size:12.5px;padding:7px}
+  .mresult{font-size:12.5px;text-align:center;min-height:18px;margin:2px 0 8px;line-height:1.7}
+  .mresult a{color:var(--accent)} .mwait{color:var(--sub)} .merr{color:#c0392b}
+
+  /* ---- 印刷 ---- */
+  #printArea{display:none}
+  @media print{
+    body{background:#fff;padding:0}
+    .wrap,#toast,.modal-bg,.tools{display:none !important}
+    #printArea{display:block !important;color:#3a342e;font-family:'Shippori Mincho',serif;padding:6mm}
+    .phead{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1.5px solid #cbbfae;padding-bottom:6px;margin-bottom:14px}
+    .pbrand{font-family:'Cormorant Garamond',serif;font-size:30px;letter-spacing:.04em}
+    .pbrand span{color:#b89a8c}
+    .pmeta{font-size:12px;color:#8a8175;letter-spacing:.12em}
+    .psec{margin-bottom:16px;break-inside:avoid}
+    .psec h2{font-size:17px;border-bottom:1px solid #e3dccf;padding-bottom:3px;margin:0 0 8px;font-weight:600}
+    .ptree{list-style:none;margin:0;padding-left:14px}
+    .ptree .ptree{padding-left:18px}
+    .ptree li{margin:3px 0;line-height:1.5;font-size:13px}
+    .pbox{display:inline-block;width:17px;color:#9a9183}
+    .ptx.pdone{color:#9a9183;text-decoration:line-through}
+    .pmk{font-size:10px;margin-left:7px;padding:1px 7px;border-radius:8px;border:1px solid #d8cdbb;white-space:nowrap}
+    .pmk.pd{color:#b08a2e;border-color:#e3d2a3}
+    .pmk.pt{color:#bd7681;border-color:#ecc9cd}
+    .ptree a{color:inherit;text-decoration:none}
+    @page{margin:12mm}
+  }
 </style>
 </head>
 <body>
@@ -147,10 +201,16 @@
   </header>
   <div class="tabbar" id="tabbar"></div>
   <div class="tabhint" id="tabhint"></div>
+  <div class="tools">
+    <button class="tbtn" onclick="openModal('print')"><svg viewBox="0 0 24 24"><path d="M6 9V4h12v5M6 18H4v-6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6h-2M7 14h10v6H7z"/></svg>印刷</button>
+    <button class="tbtn" onclick="openModal('save')"><svg viewBox="0 0 24 24"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14"/></svg>保存</button>
+  </div>
   <div id="view"><div class="loading">よみこみ中…</div></div>
   <footer><div class="hr"></div>DAILY &nbsp;·&nbsp; TO DO &nbsp;·&nbsp; MEMO</footer>
 </div>
 <div id="toast"></div>
+<div id="printArea"></div>
+<div id="modal" class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal" id="modalBox"></div></div>
 
 <script>
 /* ===== 状態 ===== */
@@ -271,13 +331,13 @@ function renderTab(tabId){
     '<span class="en">'+(t.type==='work'?'work':'list')+'</span></div>'+
     '<div class="count">'+doneN+' / '+all.length+'</div></div>';
   html+='<div class="bulkbar"><span class="bl">タブ全体：</span>'+
-    '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'daily\')">★ 全部定期</button>'+
-    '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'today\')">❀ 全部その日</button>'+
-    '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'none\')">☆ 解除</button></div>';
+    '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'daily\')">'+markIcon('daily',true)+' 全部定期</button>'+
+    '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'today\')">'+markIcon('today',true)+' 全部その日</button>'+
+    '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'none\')">解除</button></div>';
   html+='<div class="tree">'+renderKids(tabId,'',0)+'</div>';
   if(!all.length) html+='<div class="empty">からっぽです<span class="sw">add below ↓</span></div>';
   html+='<div class="addline"><button onclick="addRoot(\''+jsq(tabId)+'\')">＋ 大きな項目を追加</button></div>';
-  html+='<div class="hint">行をタップで編集 ・ Enterで次の行 ・ Tab／Shift+Tabで字下げ<br>右の <b style="color:var(--gold)">★定期</b>（毎日）／ <b style="color:var(--rose)">❀その日</b> をタップで選択（もう一度で解除）・ 上の「タブ全体」で一括 ／ … ボタンで移動・削除</div>';
+  html+='<div class="hint">行をタップで編集 ・ Enterで次の行 ・ Tab／Shift+Tabで字下げ<br>右のマークをタップで '+markIcon('daily',true)+'<b style="color:var(--gold)">定期</b>（毎日）／ '+markIcon('today',true)+'<b style="color:var(--rose)">その日</b> を選択（もう一度で解除）・ 上の「タブ全体」で一括 ／ … ボタンで移動・削除</div>';
   html+='</div>';
   v.innerHTML=html;
   focusEditing();
@@ -306,8 +366,8 @@ function nodeRow(n,depth){
   }else{
     h+='<div class="label" onclick="startEdit(\''+jsq(n.id)+'\')">'+linkify(n.text)+'</div>';
   }
-  h+='<button class="mk2 daily'+(n.daily?' on':'')+'" title="定期（毎日くりかえし）／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'daily\')">★</button>';
-  h+='<button class="mk2 today'+(n.today?' on':'')+'" title="その日にすること／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'today\')">❀</button>';
+  h+='<button class="mk2 daily'+(n.daily?' on':'')+'" title="定期（毎日くりかえし）／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'daily\')">'+markIcon('daily',n.daily)+'</button>';
+  h+='<button class="mk2 today'+(n.today?' on':'')+'" title="その日にすること／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'today\')">'+markIcon('today',n.today)+'</button>';
   h+='<button class="menu'+(STATE.menuId===n.id?' on':'')+'" title="操作" onclick="toggleMenu(\''+jsq(n.id)+'\')">⋯</button>';
   h+='</div>';
   if(STATE.menuId===n.id){
@@ -464,7 +524,7 @@ function renderDaily(){
     '<div class="count">'+doneN+' / '+total+'</div></div>';
   html+='<div class="progress"><div class="ring" style="--p:'+pct+'"><i>'+pct+'%</i></div>'+
     '<div class="pmsg">'+esc(msg)+'<small>各項目のマークを押すと、ここに集まります</small></div></div>';
-  html+='<div class="legend"><span><b class="g">★</b> 定期（毎日リセット）</span><span><b class="r">❀</b> その日（一度きり）</span></div>';
+  html+='<div class="legend"><span>'+markIcon('daily',true)+' 定期（毎日リセット）</span><span>'+markIcon('today',true)+' その日（一度きり）</span></div>';
   if(total===0){
     html+='<div class="empty">項目の右の ☆ を押して ★定期 / ❀その日 を付けてください<span class="sw">tap a mark ☆</span></div>';
   }else{
@@ -490,7 +550,7 @@ function renderDailyTree(tabId,parentId,depth){
 }
 function dailyCheckRow(n){
   var on=dailyDone(n);
-  var ico=n.daily?'<span class="ico daily">★</span>':'<span class="ico today">❀</span>';
+  var ico=n.daily?'<span class="ico daily">'+markIcon('daily',true)+'</span>':'<span class="ico today">'+markIcon('today',true)+'</span>';
   return '<div class="dchk'+(on?' done':'')+'">'+
     '<div class="check'+(on?' on':'')+'" onclick="toggleDailyCheck(\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>'+
     ico+'<span class="t">'+linkify(n.text)+'</span></div>';
@@ -518,6 +578,86 @@ function pad2(n){return (n<10?'0':'')+n;}
 function newId(){return 'C'+Date.now().toString(36)+Math.floor(Math.random()*1e6).toString(36);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function jsq(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+
+/* ===== 手書き線画マーク ===== */
+// kind:'daily'（定期＝きらめき）/'today'（その日＝小花）。on で色づく・offは淡いグレー。
+function markIcon(kind,on){
+  var col=kind==='daily'?'#c8a24e':'#c98a93';
+  var st=on?col:'currentColor', fl=on?col:'none', fo=on?(kind==='daily'?0.16:0.13):0;
+  if(kind==='daily'){
+    return '<svg class="mki" viewBox="0 0 24 24" fill="'+fl+'" fill-opacity="'+fo+'" stroke="'+st+'">'+
+      '<path d="M12 3.4C12.5 8.1 12.9 8.5 17.6 9C12.9 9.5 12.5 9.9 12 14.6C11.5 9.9 11.1 9.5 6.4 9C11.1 8.5 11.5 8.1 12 3.4Z"/></svg>';
+  }
+  var pet='<ellipse cx="12" cy="7.7" rx="1.8" ry="3.1"/>';
+  return '<svg class="mki" viewBox="0 0 24 24" fill="'+fl+'" fill-opacity="'+fo+'" stroke="'+st+'">'+
+    pet+'<g transform="rotate(72 12 12)">'+pet+'</g><g transform="rotate(144 12 12)">'+pet+'</g>'+
+    '<g transform="rotate(216 12 12)">'+pet+'</g><g transform="rotate(288 12 12)">'+pet+'</g>'+
+    '<circle cx="12" cy="12" r="1.4" fill="'+st+'" stroke="none"/></svg>';
+}
+
+/* ===== 印刷 ===== */
+function doPrint(scope){
+  var tabs=(scope==='tab'&&STATE.active!==DAILY)
+    ? STATE.tabs.filter(function(t){return t.id===STATE.active;}) : STATE.tabs;
+  var html='';
+  tabs.forEach(function(t){ html+='<section class="psec"><h2>'+esc(t.name)+'</h2>'+printKids(t.id,'')+'</section>'; });
+  if(!html) html='<p>印刷できる項目がありません。</p>';
+  document.getElementById('printArea').innerHTML=
+    '<div class="phead"><div class="pbrand">memo<span>.</span></div>'+
+    '<div class="pmeta">'+esc(document.getElementById('todayLabel').textContent)+'</div></div>'+html;
+  closeModal();
+  setTimeout(function(){ window.print(); },80);
+}
+function printKids(tabId,parentId){
+  var kids=childrenOf(tabId,parentId);
+  if(!kids.length) return '';
+  var h='<ul class="ptree">';
+  kids.forEach(function(n){
+    var box=n.done?'☑':'☐';
+    var mk=n.daily?'<span class="pmk pd">定期</span>':n.today?'<span class="pmk pt">その日</span>':'';
+    h+='<li><span class="pbox">'+box+'</span><span class="ptx'+(n.done?' pdone':'')+'">'+linkify(n.text)+'</span>'+mk+printKids(tabId,n.id)+'</li>';
+  });
+  return h+'</ul>';
+}
+
+/* ===== 保存（ドキュメント／スプレッドシート）とモーダル ===== */
+function openModal(kind){
+  if(!STATE.saveScope) STATE.saveScope='tab';
+  var box=document.getElementById('modalBox');
+  var canTab=STATE.active!==DAILY && !!tabName(STATE.active);
+  var curName=canTab?tabName(STATE.active):'';
+  if(!canTab) STATE.saveScope='all';
+  if(kind==='print'){
+    box.innerHTML='<div class="mtitle">印刷</div><div class="mdesc">印刷する範囲を選んでください。</div>'+
+      (canTab?'<button class="mbtn" onclick="doPrint(\'tab\')">このタブだけ（'+esc(curName)+'）</button>':'')+
+      '<button class="mbtn" onclick="doPrint(\'all\')">全タブまとめて</button>'+
+      '<button class="mlink" onclick="closeModal()">閉じる</button>';
+  }else{
+    box.innerHTML='<div class="mtitle">保存</div>'+
+      '<div class="mdesc">おすすめは <b>Googleドキュメント</b>（チェックリストとして読みやすく、印刷もきれい）。表で扱いたいときはスプレッドシート。</div>'+
+      '<div class="mscope">範囲：'+
+        (canTab?'<button class="chip'+(STATE.saveScope==='tab'?' on':'')+'" onclick="setScope(\'tab\')">このタブ</button>':'')+
+        '<button class="chip'+(STATE.saveScope==='all'?' on':'')+'" onclick="setScope(\'all\')">全タブ</button></div>'+
+      '<button class="mbtn rec" onclick="doExport(\'doc\')">Googleドキュメントに保存（おすすめ）</button>'+
+      '<button class="mbtn" onclick="doExport(\'sheet\')">スプレッドシートに保存</button>'+
+      '<div class="mresult" id="mresult"></div>'+
+      '<button class="mlink" onclick="closeModal()">閉じる</button>';
+  }
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal(){ document.getElementById('modal').classList.remove('open'); }
+function setScope(s){ STATE.saveScope=s; openModal('save'); }
+function doExport(fmt){
+  var scope=STATE.saveScope||'all';
+  var tabId=(scope==='tab')?STATE.active:'';
+  var res=document.getElementById('mresult');
+  if(res) res.innerHTML='<span class="mwait">保存中…（数秒かかります）</span>';
+  call(fmt==='doc'?'exportToDoc':'exportToSheet',[scope,tabId]).then(function(r){
+    if(res) res.innerHTML='✅ 保存しました：<a href="'+r.url+'" target="_blank" rel="noopener">'+esc(r.name)+' を開く</a>';
+    toast('保存しました');
+  }).catch(function(e){ if(res) res.innerHTML='<span class="merr">保存に失敗：'+esc(e&&e.message||e)+'</span>'; });
+}
+
 function linkify(s){
   var e=esc(s);
   return e.replace(/(https?:\/\/[^\s　]+)/g,function(u){return '<a href="'+u+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">'+u+'</a>';});
