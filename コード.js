@@ -69,6 +69,7 @@ function showWebAppUrl() {
 function getData(dateStr) {
   const today = dateStr || todayStr_();
   ensureSeed_();
+  ensureSubscriptionTab_();   // 「定期購入」大タブが無ければ一度だけ用意（既にあれば何もしない）
   return {
     today: today,
     tabs: readTabs_(),
@@ -365,6 +366,27 @@ function subscriptionNodes_() {
     ['◆Aesop', 'ハンドクリーム'],
     ['◆無印', 'ステンレスラック 30×10×5.5 より小さいもの']
   ];
+}
+
+// アプリ読み込み時に「定期購入」大タブを “一度だけ” 自動で用意する。
+// すでに同名タブがある／一度用意済み（フラグあり）なら何もしない＝重複も上書きもしない。
+// （あとで自分で消したときに勝手に復活しないよう、作成済みフラグで一回限りにしている）
+function ensureSubscriptionTab_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('SUBS_TAB_DONE')) return;
+  if (readTabs_().some(function (t) { return String(t.name).trim() === '定期購入'; })) {
+    props.setProperty('SUBS_TAB_DONE', '1'); return; // 既にあるので作らず、以後チェックも省略
+  }
+  withLock_(function () {
+    if (readTabs_().some(function (t) { return String(t.name).trim() === '定期購入'; })) return;
+    const tsh = tabSheet_(), nsh = nodeSheet_();
+    const tabId = newId_();
+    tsh.appendRow([tabId, '定期購入', 'normal', nextTabOrder_(tsh)]);
+    const rows = [];
+    collectSeedRows_(rows, tabId, '', subscriptionNodes_());
+    if (rows.length) nsh.getRange(nsh.getLastRow() + 1, 1, rows.length, 10).setValues(rows);
+  });
+  props.setProperty('SUBS_TAB_DONE', '1');
 }
 
 // 【メンテ用・これを実行】「定期購入」を独立した“大タブ”として確実に用意する。
