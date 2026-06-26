@@ -77,8 +77,20 @@
   .mark{flex:none;border:none;background:transparent;cursor:pointer;color:var(--line);font-size:15px;padding:2px 2px;margin-top:1px;line-height:1}
   .mark.daily{color:var(--gold)}
   .mark.today{color:var(--rose)}
+  /* ★定期 / ❀その日 を横並びで選択（排他・もう一度で解除） */
+  .mk2{flex:none;border:none;background:transparent;cursor:pointer;color:var(--line);
+    font-size:15px;padding:2px 3px;margin-top:1px;line-height:1;border-radius:6px;transition:color .15s,transform .15s}
+  .mk2:hover{color:var(--sub);background:#efece6}
+  .mk2.daily.on{color:var(--gold);transform:scale(1.12)}
+  .mk2.today.on{color:var(--rose);transform:scale(1.12)}
   .menu{flex:none;border:none;background:transparent;cursor:pointer;color:var(--sub);font-size:15px;padding:2px 4px;margin-top:1px;border-radius:6px;line-height:1}
   .menu:hover,.menu.on{background:#e7e1d7;color:var(--ink)}
+  /* タブ一括選択バー */
+  .bulkbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 2px 0;font-size:12px;color:var(--sub)}
+  .bulkbar .bl{letter-spacing:.04em}
+  .bulkbar button{border:1px solid var(--line);background:var(--paper2);cursor:pointer;color:var(--sub);
+    font-size:12px;padding:4px 10px;border-radius:8px;line-height:1.2}
+  .bulkbar button:hover{border-color:var(--accent);color:var(--ink)}
   .toolbar{display:flex;flex-wrap:wrap;gap:4px;padding:4px 2px 8px 26px}
   .toolbar button{border:1px solid var(--line);background:var(--paper2);cursor:pointer;color:var(--sub);
     font-size:12px;padding:4px 9px;border-radius:8px;line-height:1.2}
@@ -258,10 +270,14 @@ function renderTab(tabId){
   var html='<div class="card"><div class="card-head"><div class="card-title">'+esc(t.name)+
     '<span class="en">'+(t.type==='work'?'work':'list')+'</span></div>'+
     '<div class="count">'+doneN+' / '+all.length+'</div></div>';
+  html+='<div class="bulkbar"><span class="bl">タブ全体：</span>'+
+    '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'daily\')">★ 全部定期</button>'+
+    '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'today\')">❀ 全部その日</button>'+
+    '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'none\')">☆ 解除</button></div>';
   html+='<div class="tree">'+renderKids(tabId,'',0)+'</div>';
   if(!all.length) html+='<div class="empty">からっぽです<span class="sw">add below ↓</span></div>';
   html+='<div class="addline"><button onclick="addRoot(\''+jsq(tabId)+'\')">＋ 大きな項目を追加</button></div>';
-  html+='<div class="hint">行をタップで編集 ・ Enterで次の行 ・ Tab／Shift+Tabで字下げ<br>右の ☆ をタップ → <b style="color:var(--gold)">★定期</b>（毎日）→ <b style="color:var(--rose)">❀その日</b> → なし ／ … ボタンで移動・削除</div>';
+  html+='<div class="hint">行をタップで編集 ・ Enterで次の行 ・ Tab／Shift+Tabで字下げ<br>右の <b style="color:var(--gold)">★定期</b>（毎日）／ <b style="color:var(--rose)">❀その日</b> をタップで選択（もう一度で解除）・ 上の「タブ全体」で一括 ／ … ボタンで移動・削除</div>';
   html+='</div>';
   v.innerHTML=html;
   focusEditing();
@@ -290,10 +306,8 @@ function nodeRow(n,depth){
   }else{
     h+='<div class="label" onclick="startEdit(\''+jsq(n.id)+'\')">'+linkify(n.text)+'</div>';
   }
-  var mk=n.daily?'mark daily':n.today?'mark today':'mark';
-  var mglyph=n.daily?'★':n.today?'❀':'☆';
-  var mtitle=n.daily?'定期（毎日くりかえし）':n.today?'その日にすること':'タップで 定期★→その日❀→なし';
-  h+='<button class="'+mk+'" title="'+mtitle+'" onclick="cycleMark(\''+jsq(n.id)+'\')">'+mglyph+'</button>';
+  h+='<button class="mk2 daily'+(n.daily?' on':'')+'" title="定期（毎日くりかえし）／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'daily\')">★</button>';
+  h+='<button class="mk2 today'+(n.today?' on':'')+'" title="その日にすること／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'today\')">❀</button>';
   h+='<button class="menu'+(STATE.menuId===n.id?' on':'')+'" title="操作" onclick="toggleMenu(\''+jsq(n.id)+'\')">⋯</button>';
   h+='</div>';
   if(STATE.menuId===n.id){
@@ -375,6 +389,18 @@ function cycleMark(id){
   call('updateNode',[id,'daily',n.daily]).catch(failNote);
   call('updateNode',[id,'today',n.today]).catch(failNote);
   toast(n.daily?'★定期に入れました':n.today?'❀その日に入れました':'マークを外しました');
+}
+// タブ全体を一括選択：そのタブの「項目（子を持たない葉）」すべてに ★/❀ を付ける・解除。
+function bulkMark(tabId,kind){
+  var leaves=STATE.nodes.filter(function(n){return n.tab===tabId&&!hasKids(n);});
+  if(!leaves.length){ toast('項目がありません'); return; }
+  var label=kind==='daily'?'★定期':kind==='today'?'❀その日':'解除';
+  if(!confirm('「'+tabName(tabId)+'」の '+leaves.length+' 項目をすべて '+label+' にしますか？')) return;
+  leaves.forEach(function(n){ n.daily=(kind==='daily'); n.today=(kind==='today'); });
+  renderView();
+  call('bulkSetMark',[leaves.map(function(n){return n.id;}),kind]).then(function(){
+    toast(label+'：'+leaves.length+'件にしました');
+  }).catch(failNote);
 }
 
 function moveNode(id,dir){

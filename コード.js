@@ -193,6 +193,29 @@ function applyMoves(updates) {
   });
 }
 
+// 指定ノード群のマークを一括設定（タブ一括選択用）。kind: 'daily'|'today'|'none'
+// 列まとめ読み→まとめ書きで、件数が多くても速い。
+function bulkSetMark(ids, kind) {
+  const set = {};
+  (ids || []).forEach(function (id) { set[String(id)] = true; });
+  const daily = (kind === 'daily'), today = (kind === 'today');
+  return withLock_(function () {
+    const sh = nodeSheet_();
+    const last = sh.getLastRow();
+    if (last < 2) return { ok: true, count: 0 };
+    const idCol = sh.getRange(2, 1, last - 1, 1).getValues();   // ID
+    const dCol = sh.getRange(2, 8, last - 1, 1).getValues();    // 毎日
+    const tCol = sh.getRange(2, 10, last - 1, 1).getValues();   // その日
+    let n = 0;
+    for (let i = 0; i < idCol.length; i++) {
+      if (set[String(idCol[i][0])]) { dCol[i][0] = daily; tCol[i][0] = today; n++; }
+    }
+    sh.getRange(2, 8, last - 1, 1).setValues(dCol);
+    sh.getRange(2, 10, last - 1, 1).setValues(tCol);
+    return { ok: true, count: n };
+  });
+}
+
 // 「今日のチェック」その日付の達成チェックを付け外し
 function setDailyCheck(id, dateStr, done) {
   const date = dateStr || todayStr_();
