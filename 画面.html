@@ -313,12 +313,13 @@ function editTabName(t){
 }
 function removeTab(t){
   var n=STATE.nodes.filter(function(x){return x.tab===t.id;}).length;
-  if(!confirm('タブ「'+t.name+'」を削除しますか？'+(n?'\n（中の '+n+' 項目も削除されます）':'')))return;
-  STATE.tabs=STATE.tabs.filter(function(x){return x.id!==t.id;});
-  STATE.nodes=STATE.nodes.filter(function(x){return x.tab!==t.id;});
-  if(STATE.active===t.id)STATE.active=(STATE.tabs[0]&&STATE.tabs[0].id)||DAILY;
-  renderTabs();renderView();
-  call('deleteTab',[t.id]).catch(failNote);
+  openConfirm('タブ「'+t.name+'」を削除しますか？'+(n?'\n（中の '+n+' 項目も削除されます）':''), function(){
+    STATE.tabs=STATE.tabs.filter(function(x){return x.id!==t.id;});
+    STATE.nodes=STATE.nodes.filter(function(x){return x.tab!==t.id;});
+    if(STATE.active===t.id)STATE.active=(STATE.tabs[0]&&STATE.tabs[0].id)||DAILY;
+    renderTabs();renderView();
+    call('deleteTab',[t.id]).catch(failNote);
+  });
 }
 function moveTab(i,dir){
   var j=i+dir;if(j<0||j>=STATE.tabs.length)return;
@@ -353,7 +354,7 @@ function renderTab(tabId){
   html+='<div class="tree" ondblclick="if(event.target===this)addRoot(\''+jsq(tabId)+'\')">'+renderKids(tabId,'',0)+'</div>';
   if(!all.length) html+='<div class="empty" ondblclick="addRoot(\''+jsq(tabId)+'\')">からっぽです<span class="sw">ここをダブルクリックで追加</span></div>';
   html+='<div class="addline"><button onclick="addRoot(\''+jsq(tabId)+'\')">＋ 大きな項目を追加</button></div>';
-  html+='<div class="hint">クリックで編集 ・ <b>ダブルクリックで下に追加</b>（中タブ→中に子／子→同じ並び）・ 左の<b>⠿をドラッグで移動</b> ・ Enterで次の行<br>右のマークをタップで '+markIcon('daily',true)+'<b style="color:var(--gold)">定期</b>（毎日）／ '+markIcon('today',true)+'<b style="color:var(--rose)">その日</b> を選択（もう一度で解除）・ 上の「タブ全体」で一括 ／ … ボタンで移動・削除</div>';
+  html+='<div class="hint">クリックで編集 ・ <b>ダブルクリックで下に追加</b>（中タブ→中に子／子→同じ並び）・ 左の<b>⠿をドラッグで移動</b> ・ Enterで確定<br>右のマークをタップで '+markIcon('daily',true)+'<b style="color:var(--gold)">定期</b>（毎日）／ '+markIcon('today',true)+'<b style="color:var(--rose)">その日</b> を選択（もう一度で解除）・ 上の「タブ全体」で一括 ／ … ボタンで移動・削除</div>';
   html+='</div>';
   v.innerHTML=html;
   focusEditing();
@@ -495,7 +496,7 @@ function focusEditing(){
   var inp=document.getElementById('ed_'+STATE.editingId);if(!inp)return;
   inp.focus();var l=inp.value.length;inp.setSelectionRange(l,l);
   inp.onkeydown=function(e){
-    if(e.key==='Enter'){ e.preventDefault(); commitEdit(true); }
+    if(e.key==='Enter'){ e.preventDefault(); commitEdit(false); }
     else if(e.key==='Escape'){ STATE.editingId=null; renderView(); }
     else if(e.key==='Tab'){ e.preventDefault(); commitEdit(false, e.shiftKey?'out':'in'); }
   };
@@ -548,12 +549,13 @@ function bulkMarkNode(id,kind){
   })(id);
   if(!leaves.length){ toast('この中に項目がありません'); return; }
   var label=kind==='daily'?'★定期':kind==='today'?'❀その日':'解除';
-  if(!confirm('「'+(node.text||'(空)')+'」の中の '+leaves.length+' 項目をすべて '+label+' にしますか？')) return;
-  leaves.forEach(function(n){ n.daily=(kind==='daily'); n.today=(kind==='today'); });
-  STATE.menuId=null; renderView();
-  call('bulkSetMark',[leaves.map(function(n){return n.id;}),kind]).then(function(){
-    toast(label+'：'+leaves.length+'件にしました');
-  }).catch(failNote);
+  openConfirm('「'+(node.text||'(空)')+'」の中の '+leaves.length+' 項目をすべて '+label+' にしますか？', function(){
+    leaves.forEach(function(n){ n.daily=(kind==='daily'); n.today=(kind==='today'); });
+    STATE.menuId=null; renderView();
+    call('bulkSetMark',[leaves.map(function(n){return n.id;}),kind]).then(function(){
+      toast(label+'：'+leaves.length+'件にしました');
+    }).catch(failNote);
+  });
 }
 
 // タブ全体を一括選択：そのタブの「項目（子を持たない葉）」すべてに ★/❀ を付ける・解除。
@@ -561,12 +563,13 @@ function bulkMark(tabId,kind){
   var leaves=STATE.nodes.filter(function(n){return n.tab===tabId&&!hasKids(n);});
   if(!leaves.length){ toast('項目がありません'); return; }
   var label=kind==='daily'?'★定期':kind==='today'?'❀その日':'解除';
-  if(!confirm('「'+tabName(tabId)+'」の '+leaves.length+' 項目をすべて '+label+' にしますか？')) return;
-  leaves.forEach(function(n){ n.daily=(kind==='daily'); n.today=(kind==='today'); });
-  renderView();
-  call('bulkSetMark',[leaves.map(function(n){return n.id;}),kind]).then(function(){
-    toast(label+'：'+leaves.length+'件にしました');
-  }).catch(failNote);
+  openConfirm('「'+tabName(tabId)+'」の '+leaves.length+' 項目をすべて '+label+' にしますか？', function(){
+    leaves.forEach(function(n){ n.daily=(kind==='daily'); n.today=(kind==='today'); });
+    renderView();
+    call('bulkSetMark',[leaves.map(function(n){return n.id;}),kind]).then(function(){
+      toast(label+'：'+leaves.length+'件にしました');
+    }).catch(failNote);
+  });
 }
 
 function moveNode(id,dir){
@@ -600,13 +603,14 @@ function reflow(tabId,parentId){
 function removeNode(id){
   var n=byId(id);if(!n)return;
   var kids=hasKids(n);
-  if(!confirm('「'+(n.text||'(空)')+'」'+(kids?'と、その中身も':'')+'を削除しますか？'))return;
-  var kill={};(function col(x){kill[x]=true;STATE.nodes.filter(function(c){return c.parentId===x;}).forEach(function(c){col(c.id);});})(id);
-  STATE.nodes=STATE.nodes.filter(function(x){return !kill[x.id];});
-  STATE.todayChecks=STATE.todayChecks.filter(function(t){return !kill[t];});
-  STATE.menuId=null;
-  renderView();
-  call('deleteNode',[id]).catch(failNote);
+  openConfirm('「'+(n.text||'(空)')+'」'+(kids?'と、その中身も':'')+'を削除しますか？', function(){
+    var kill={};(function col(x){kill[x]=true;STATE.nodes.filter(function(c){return c.parentId===x;}).forEach(function(c){col(c.id);});})(id);
+    STATE.nodes=STATE.nodes.filter(function(x){return !kill[x.id];});
+    STATE.todayChecks=STATE.todayChecks.filter(function(t){return !kill[t];});
+    STATE.menuId=null;
+    renderView();
+    call('deleteNode',[id]).catch(failNote);
+  });
 }
 
 /* ===== 今日のチェック ===== */
@@ -747,6 +751,16 @@ function okInput(){
   STATE._oninput=null; closeModal();
   if(fn) fn(v);
 }
+// アプリ内の確認ダイアログ（ブラウザのconfirm＝URLが出るダイアログの代わり）
+function openConfirm(message, onok){
+  STATE._onok=onok;
+  document.getElementById('modalBox').innerHTML=
+    '<div class="mdesc" style="font-size:14px;margin-bottom:16px">'+esc(message).replace(/\n/g,'<br>')+'</div>'+
+    '<button class="mbtn rec" onclick="okConfirm()">はい</button>'+
+    '<button class="mlink" onclick="closeModal()">キャンセル</button>';
+  document.getElementById('modal').classList.add('open');
+}
+function okConfirm(){ var fn=STATE._onok; STATE._onok=null; closeModal(); if(fn) fn(); }
 
 function openModal(kind){
   if(!STATE.saveScope) STATE.saveScope='tab';
