@@ -94,6 +94,13 @@
   /* タブ一括選択バー */
   .bulkbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 2px 0;font-size:12px;color:var(--sub)}
   .bulkbar .bl{letter-spacing:.04em}
+  /* 買い物リスト */
+  .shoprow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 2px 2px}
+  .shopopen{border:1px solid var(--accent);background:#f3ece4;color:var(--ink);cursor:pointer;
+    font-family:'Shippori Mincho',serif;font-size:14px;padding:7px 16px;border-radius:999px;letter-spacing:.04em}
+  .shopopen:hover{background:#eee2d6}
+  .shophint{font-size:11.5px;color:var(--sub)}
+  .shopbar{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px}
   .bulkbar button{border:1px solid var(--line);background:var(--paper2);cursor:pointer;color:var(--sub);
     font-size:12px;padding:4px 10px;border-radius:8px;line-height:1.2}
   .bulkbar button:hover{border-color:var(--accent);color:var(--ink)}
@@ -227,7 +234,7 @@
 
 <script>
 /* ===== 状態 ===== */
-var STATE={today:'',tabs:[],nodes:[],todayChecks:[],active:null,editTabs:false,editingId:null,menuId:null};
+var STATE={today:'',tabs:[],nodes:[],todayChecks:[],active:null,editTabs:false,editingId:null,menuId:null,shopping:null};
 var TAB_COLORS=['#b89a8c','#9bb0b8','#c2a9b4','#a9b29a','#c9b489','#a8a59c'];
 var DAILY='__daily__';
 
@@ -335,7 +342,7 @@ function moveTab(i,dir){
 }
 
 /* ===== ビュー ===== */
-function renderView(){ if(STATE.active===DAILY)renderDaily(); else renderTab(STATE.active); }
+function renderView(){ if(STATE.shopping)renderShop(STATE.shopping); else if(STATE.active===DAILY)renderDaily(); else renderTab(STATE.active); }
 
 function childrenOf(tabId,parentId){
   return STATE.nodes.filter(function(n){return n.tab===tabId&&n.parentId===parentId;})
@@ -352,6 +359,11 @@ function renderTab(tabId){
   var html='<div class="card"><div class="card-head"><div class="card-title">'+esc(t.name)+
     '<span class="en">'+(t.type==='work'?'work':'list')+'</span></div>'+
     '<div class="count">'+doneN+' / '+all.length+'</div></div>';
+  if(t.name==='定期購入'){
+    var nbuy=STATE.nodes.filter(function(n){return n.tab===tabId&&n.today&&!hasKids(n);}).length;
+    html+='<div class="shoprow"><button class="shopopen" onclick="openShop(\''+jsq(tabId)+'\')">🛒 買い物リスト'+(nbuy?'（'+nbuy+'）':'')+'</button>'+
+      '<span class="shophint">'+markIcon('today',true)+' を付けたものが買い物リストに入ります</span></div>';
+  }
   html+='<div class="bulkbar"><span class="bl">タブ全体：</span>'+
     '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'daily\')">'+markIcon('daily',true)+' 全部定期</button>'+
     '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'today\')">'+markIcon('today',true)+' 全部その日</button>'+
@@ -456,7 +468,67 @@ function switchTab(id){
   commitEdit(false);
   STATE.editingId=null;
   cleanupEmptyNodes();
+  STATE.shopping=null;
   STATE.active=id; renderTabs(); renderView();
+}
+
+/* ===== 買い物リスト（定期購入向け：◆店ごと）===== */
+function openShop(tabId){ commitEdit(false); STATE.editingId=null; cleanupEmptyNodes(); STATE.shopping=tabId; STATE.menuId=null; renderView(); }
+function closeShop(){ STATE.shopping=null; renderView(); }
+function shopGroups(tabId){
+  var groups=[];
+  childrenOf(tabId,'').forEach(function(cat){          // 各 ◆店
+    var list=[];
+    (function walk(pid){
+      childrenOf(tabId,pid).forEach(function(n){
+        if(hasKids(n)) walk(n.id); else if(n.today) list.push(n);
+      });
+    })(cat.id);
+    if(!hasKids(cat)&&cat.today) list.push(cat);
+    if(list.length) groups.push({cat:cat, list:list});
+  });
+  return groups;
+}
+function renderShop(tabId){
+  var t=STATE.tabs.filter(function(x){return x.id===tabId;})[0];
+  var items=STATE.nodes.filter(function(n){return n.tab===tabId&&n.today&&!hasKids(n);});
+  var total=items.length, bought=items.filter(function(n){return n.done;}).length;
+  var v=document.getElementById('view');
+  var html='<div class="card">';
+  html+='<div class="card-head"><div class="card-title">🛒 買い物リスト<span class="en">'+esc(t?t.name:'')+'</span></div>'+
+    '<div class="count">'+bought+' / '+total+'</div></div>';
+  html+='<div class="shopbar"><button class="tbtn" onclick="closeShop()">← 戻る</button>'+
+    (bought?'<button class="tbtn" onclick="clearBought(\''+jsq(tabId)+'\')">買ったものを片付ける（'+bought+'）</button>':'')+'</div>';
+  if(!total){
+    html+='<div class="empty">買うものが選ばれていません<span class="sw">定期購入で '+markIcon('today',true)+' を付けてください</span></div>';
+  }else{
+    shopGroups(tabId).forEach(function(g){
+      html+='<div class="group-label">'+linkify(g.cat.text)+'</div>';
+      g.list.forEach(function(n){
+        var on=n.done;
+        html+='<div class="dchk'+(on?' done':'')+'">'+
+          '<div class="check'+(on?' on':'')+'" onclick="toggleBought(\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>'+
+          '<span class="t">'+linkify(n.text)+'</span></div>';
+      });
+    });
+  }
+  html+='<div class="hint">家で '+markIcon('today',true)+' を付けたものがここに並びます。買ったらタップでチェック → 「買ったものを片付ける」でリストから外せます。</div>';
+  html+='</div>';
+  v.innerHTML=html;
+}
+function toggleBought(id){ var n=byId(id);if(!n)return; snap(); n.done=!n.done; renderView();
+  call('updateNode',[id,'done',n.done]).catch(failNote);
+  var items=STATE.nodes.filter(function(x){return x.tab===n.tab&&x.today&&!hasKids(x);});
+  if(items.length&&items.every(function(x){return x.done;})) toast('ぜんぶ買えました ✦');
+}
+function clearBought(tabId){
+  var bought=STATE.nodes.filter(function(n){return n.tab===tabId&&n.today&&!hasKids(n)&&n.done;});
+  if(!bought.length){ toast('チェック済みがありません'); return; }
+  snap();
+  bought.forEach(function(n){ n.today=false; n.done=false; });
+  renderView();
+  bought.forEach(function(n){ call('updateNode',[n.id,'today',false]).catch(failNote); call('updateNode',[n.id,'done',false]).catch(failNote); });
+  toast(bought.length+'件を片付けました');
 }
 
 function createNode(tabId,parentId,order,text){
