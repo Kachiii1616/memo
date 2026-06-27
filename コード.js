@@ -15,6 +15,38 @@
  *           「画面.html」を貼り付け →［デプロイ］→ ウェブアプリ。
  */
 
+// 【復旧用・一度だけ実行】タブIDとノードのタブIDがズレて「全タブが空」に見える事故を直す。
+// タブ名ごとに、実際にノードが使っている正しいタブIDへ書き戻す（ノードが存在するIDのみ採用）。
+// 何度実行してもOK（ズレている行だけ直す）。GASエディタで repairTabIds を選んで ▶実行。
+function repairTabIds() {
+  return withLock_(function () {
+    const NODE_TAB = {
+      '生活': 'Nmqrnkvoo2pkr',
+      'ファイナンス': 'Nmqrnkvtf92zg',
+      '音楽': 'Nmqrnkwhl2r53',
+      'カメラ': 'Nmqrnkwoy68u7',
+      'お仕事': 'Nmqrnkwvcggn5',
+      '定期購入': 'Nmqutv5qe5m8j'
+    };
+    const nv = nodeSheet_().getDataRange().getValues();
+    const count = {};
+    for (let i = 1; i < nv.length; i++) { const t = String(nv[i][1]); count[t] = (count[t] || 0) + 1; }
+    const sh = tabSheet_();
+    const v = sh.getDataRange().getValues();
+    const done = [];
+    for (let i = 1; i < v.length; i++) {
+      const name = String(v[i][1] || '').trim();
+      const target = NODE_TAB[name];
+      if (target && count[target] && String(v[i][0]) !== target) {
+        sh.getRange(i + 1, 1).setValue(target); // ID列を正しい値へ
+        done.push(name + '（' + count[target] + '件）');
+      }
+    }
+    return done.length ? '復旧しました：' + done.join(' / ') + '。アプリを再読み込みしてください。'
+                       : 'ズレは見つかりませんでした（既に正常か、名前が一致しません）。';
+  });
+}
+
 // ===== 設定 =================================================================
 const CONFIG = {
   // 保存先。ID/URL を入れると固定。空''なら バウンドのアクティブブック →
