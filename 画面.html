@@ -492,19 +492,17 @@ function toggleMenu(id){ STATE.menuId=(STATE.menuId===id?null:id); renderView();
 
 /* ===== 元に戻す（Undo） ===== */
 var UNDO=[];
-function snap(){ // 変更の直前に現在の状態を保存
-  UNDO.push(JSON.stringify({tabs:STATE.tabs, nodes:STATE.nodes}));
+function snap(){ // 変更の直前にノードだけ保存（タブは対象外＝Undoでタブを壊さない）
+  UNDO.push(JSON.stringify(STATE.nodes));
   if(UNDO.length>40) UNDO.shift();
   var b=document.getElementById('undoBtn'); if(b) b.disabled=false;
 }
 function undo(){
   if(!UNDO.length){ toast('戻せる変更はありません'); return; }
-  var s=JSON.parse(UNDO.pop());
-  STATE.tabs=s.tabs; STATE.nodes=s.nodes; STATE.selected=null; STATE.editing=false; STATE.menuId=null;
-  if(STATE.active!==DAILY && !STATE.tabs.some(function(t){return t.id===STATE.active;}))
-    STATE.active=(STATE.tabs[0]&&STATE.tabs[0].id)||DAILY;
+  STATE.nodes=JSON.parse(UNDO.pop());           // ノードだけ復元（タブはそのまま）
+  STATE.selected=null; STATE.editing=false; STATE.menuId=null;
   renderTabs(); renderView();
-  call('restoreAll',[STATE.tabs, STATE.nodes]).catch(failNote);
+  call('restoreAll',[STATE.nodes]).catch(failNote);
   toast('元に戻しました');
   var b=document.getElementById('undoBtn'); if(b&&!UNDO.length) b.disabled=true;
 }

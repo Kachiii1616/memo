@@ -396,23 +396,17 @@ function bulkSetMark(ids, kind) {
 
 // 【Undo用】タブ・ノードのシートを、渡された内容で丸ごと書き直す（直前の状態へ復元）。
 // 「今日のチェック」シートには触らない。
-function restoreAll(tabs, nodes) {
-  // 安全弁：タブが空のデータでは全消去しない（タブ消失→再生成事故の防止）。
-  if (!tabs || !tabs.length) return { ok: false, skipped: 'no-tabs' };
+// 【Undo用】ノードだけを丸ごと書き直す（タブには一切触れない＝タブの並べ替え/追加を壊さない）。
+function restoreAll(nodes) {
+  if (!nodes || !nodes.length) return { ok: false, skipped: 'no-nodes' };  // 全消去の安全弁
   return withLock_(function () {
-    const tsh = tabSheet_(), nsh = nodeSheet_();
-    clearBody_(tsh); clearBody_(nsh);
-    if (tabs && tabs.length) {
-      const trows = tabs.map(function (t) { return [t.id, t.name, t.type || 'normal', Number(t.order) || 0]; });
-      tsh.getRange(2, 1, trows.length, 4).setValues(trows);
-    }
-    if (nodes && nodes.length) {
-      const nrows = nodes.map(function (n) {
-        return [n.id, n.tab, n.parentId || '', n.text || '', Number(n.order) || 0,
-          !!n.done, !!n.collapsed, !!n.daily, n.note || '', !!n.today];
-      });
-      nsh.getRange(2, 1, nrows.length, 10).setValues(nrows);
-    }
+    const nsh = nodeSheet_();
+    clearBody_(nsh);
+    const nrows = nodes.map(function (n) {
+      return [n.id, n.tab, n.parentId || '', n.text || '', Number(n.order) || 0,
+        !!n.done, !!n.collapsed, !!n.daily, n.note || '', !!n.today];
+    });
+    nsh.getRange(2, 1, nrows.length, 10).setValues(nrows);
     return { ok: true };
   });
 }
@@ -625,9 +619,10 @@ function checkSheet_() { return ensureSheet_(CONFIG.CHECK_SHEET, ['日付', 'ノ
 // 初回だけ、既定タブ＋中身（buildSeed_）を流し込む
 function ensureSeed_() {
   const sh = tabSheet_();
-  if (sh.getLastRow() >= 2) return; // すでに何かある
+  if (sh.getLastRow() >= 2) return;              // タブが既にある
+  if (nodeSheet_().getLastRow() >= 2) return;    // ノードがあるなら絶対にseedしない（標準タブ誤再生成の防止）
   withLock_(function () {
-    if (sh.getLastRow() >= 2) return;
+    if (sh.getLastRow() >= 2 || nodeSheet_().getLastRow() >= 2) return;
     applySeed_();
   });
 }
