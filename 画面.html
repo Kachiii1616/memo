@@ -1085,7 +1085,8 @@ function printKids(tabId,parentId){
 function openInput(title, value, placeholder, onok){
   STATE._oninput=onok;
   document.getElementById('modalBox').innerHTML='<div class="mtitle">'+esc(title)+'</div>'+
-    '<input class="minput" id="minput" value="'+esc(value||'')+'" placeholder="'+esc(placeholder||'')+'" maxlength="40">'+
+    '<input class="minput" id="minput" value="'+esc(value||'')+'" placeholder="'+esc(placeholder||'')+'" maxlength="40" ondblclick="okInput()">'+
+    '<div class="mdesc" style="margin:2px 0 12px">Enter／ダブルクリックで確定</div>'+
     '<button class="mbtn rec" onclick="okInput()">決定</button>'+
     '<button class="mlink" onclick="closeModal()">キャンセル</button>';
   document.getElementById('modal').classList.add('open');
