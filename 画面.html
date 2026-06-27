@@ -58,6 +58,12 @@
   .tree{margin:2px 0}
   .row{display:flex;align-items:flex-start;gap:6px;padding:4px 2px;border-radius:9px;position:relative}
   .row:hover{background:#f1ece4}
+  .drag{flex:none;width:15px;height:24px;display:grid;place-items:center;color:var(--line);cursor:grab;
+    touch-action:none;user-select:none}
+  .drag:hover{color:var(--sub)} .drag:active{cursor:grabbing}
+  .row.dragsrc{opacity:.45}
+  .row.drop-after{box-shadow:inset 0 -3px 0 -1px var(--accent)}
+  body.dragging{user-select:none;cursor:grabbing}
   .twist{flex:none;width:15px;height:24px;display:grid;place-items:center;cursor:pointer;color:var(--sub);font-size:10px;user-select:none}
   .twist.empty{cursor:default;opacity:0}
   .check{flex:none;width:21px;height:21px;margin-top:1px;border-radius:50%;border:2px solid var(--line);
@@ -347,7 +353,7 @@ function renderTab(tabId){
   html+='<div class="tree" ondblclick="if(event.target===this)addRoot(\''+jsq(tabId)+'\')">'+renderKids(tabId,'',0)+'</div>';
   if(!all.length) html+='<div class="empty" ondblclick="addRoot(\''+jsq(tabId)+'\')">からっぽです<span class="sw">ここをダブルクリックで追加</span></div>';
   html+='<div class="addline"><button onclick="addRoot(\''+jsq(tabId)+'\')">＋ 大きな項目を追加</button></div>';
-  html+='<div class="hint">クリックで編集 ・ <b>ダブルクリックで中に項目を追加</b> ・ Enterで次の行 ・ Tab／Shift+Tabで字下げ<br>右のマークをタップで '+markIcon('daily',true)+'<b style="color:var(--gold)">定期</b>（毎日）／ '+markIcon('today',true)+'<b style="color:var(--rose)">その日</b> を選択（もう一度で解除）・ 上の「タブ全体」で一括 ／ … ボタンで移動・削除</div>';
+  html+='<div class="hint">クリックで編集 ・ <b>ダブルクリックで下に追加</b>（中タブ→中に子／子→同じ並び）・ 左の<b>⠿をドラッグで移動</b> ・ Enterで次の行<br>右のマークをタップで '+markIcon('daily',true)+'<b style="color:var(--gold)">定期</b>（毎日）／ '+markIcon('today',true)+'<b style="color:var(--rose)">その日</b> を選択（もう一度で解除）・ 上の「タブ全体」で一括 ／ … ボタンで移動・削除</div>';
   html+='</div>';
   v.innerHTML=html;
   focusEditing();
@@ -369,12 +375,13 @@ function nodeRow(n,depth){
   var editing=STATE.editingId===n.id;
   var cls='row'+(n.done?' done':'')+(depth===0?' sec':depth===1?' sub':' d'+Math.min(depth,4));
   var h='<div class="'+cls+'" data-id="'+n.id+'">';
+  h+='<div class="drag" title="ドラッグで移動" onpointerdown="dragStart(event,\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16" width="11" height="11"><g fill="currentColor"><circle cx="6" cy="3" r="1.3"/><circle cx="10" cy="3" r="1.3"/><circle cx="6" cy="8" r="1.3"/><circle cx="10" cy="8" r="1.3"/><circle cx="6" cy="13" r="1.3"/><circle cx="10" cy="13" r="1.3"/></g></svg></div>';
   h+='<div class="twist'+(kids?'':' empty')+'" onclick="toggleCollapse(\''+jsq(n.id)+'\')">'+(kids?(n.collapsed?'▶':'▼'):'•')+'</div>';
   h+='<div class="check'+(n.done?' on':'')+'" onclick="toggleDone(\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>';
   if(editing){
     h+='<div class="label"><input class="ed" id="ed_'+n.id+'" value="'+esc(n.text)+'" maxlength="200"></div>';
   }else{
-    h+='<div class="label" title="クリックで編集／ダブルクリックで中に項目を追加" onclick="rowEdit(\''+jsq(n.id)+'\')" ondblclick="rowAddChild(\''+jsq(n.id)+'\')">'+linkify(n.text)+'</div>';
+    h+='<div class="label" title="クリックで編集／ダブルクリックで下に項目を追加" onclick="rowEdit(\''+jsq(n.id)+'\')" ondblclick="rowAddSmart(\''+jsq(n.id)+'\')">'+linkify(n.text)+'</div>';
   }
   h+='<button class="mk2 daily'+(n.daily?' on':'')+'" title="定期（毎日くりかえし）／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'daily\')">'+markIcon('daily',n.daily)+'</button>';
   h+='<button class="mk2 today'+(n.today?' on':'')+'" title="その日にすること／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'today\')">'+markIcon('today',n.today)+'</button>';
@@ -421,7 +428,66 @@ function createNode(tabId,parentId,order,text){
 // クリック＝編集 ／ ダブルクリック＝中に項目（小タブ）を追加、を区別する
 var _clk=null;
 function rowEdit(id){ if(_clk){clearTimeout(_clk);_clk=null;} _clk=setTimeout(function(){_clk=null;startEdit(id);},200); }
-function rowAddChild(id){ if(_clk){clearTimeout(_clk);_clk=null;} addChild(id); }
+// ダブルクリックの追加：中タブ(最上位)→中に子を直下／子タブ(入れ子)→同じ並びを直下に
+function rowAddSmart(id){
+  if(_clk){clearTimeout(_clk);_clk=null;}
+  var n=byId(id); if(!n) return;
+  if(!n.parentId) addChildTop(n);   // 中タブ → 子（小タブ）を直下（先頭）に
+  else addSiblingAfter(n);          // 子タブ → 同列の項目を直後に
+}
+function addChildTop(n){
+  n.collapsed=false;
+  var kids=childrenOf(n.tab,n.id);
+  createNode(n.tab, n.id, kids.length?kids[0].order-1:0, '');
+  reflow(n.tab, n.id);
+}
+function addSiblingAfter(n){
+  createNode(n.tab, n.parentId, n.order+0.5, '');
+  reflow(n.tab, n.parentId);
+}
+
+/* ===== ドラッグで並べ替え（マウス＆タッチ：Pointer Events）===== */
+function isDescendant(maybeChildId, ancestorId){
+  var cur=byId(maybeChildId), guard=0;
+  while(cur && cur.parentId && guard++<60){ if(cur.parentId===ancestorId) return true; cur=byId(cur.parentId); }
+  return false;
+}
+function clearDrop(){ var e=document.querySelectorAll('.drop-after'); for(var i=0;i<e.length;i++) e[i].classList.remove('drop-after'); }
+function dragStart(e, id){
+  if(STATE.editingId) return;
+  e.preventDefault();
+  var src=document.querySelector('.row[data-id="'+id+'"]'); if(src) src.classList.add('dragsrc');
+  document.body.classList.add('dragging');
+  var target=null;
+  function move(ev){
+    if(ev.cancelable) ev.preventDefault();
+    var p = ev.touches?ev.touches[0]:ev;
+    var el=document.elementFromPoint(p.clientX, p.clientY);
+    var row = el && el.closest ? el.closest('.row') : null;
+    clearDrop();
+    if(row && row.getAttribute('data-id') && row.getAttribute('data-id')!==id){
+      target=row.getAttribute('data-id'); row.classList.add('drop-after');
+    } else target=null;
+  }
+  function up(){
+    document.removeEventListener('pointermove',move);
+    document.removeEventListener('pointerup',up);
+    document.body.classList.remove('dragging'); clearDrop();
+    if(src) src.classList.remove('dragsrc');
+    if(target) dropMove(id, target);
+  }
+  document.addEventListener('pointermove',move,{passive:false});
+  document.addEventListener('pointerup',up);
+}
+function dropMove(dragId, targetId){
+  var d=byId(dragId), t=byId(targetId);
+  if(!d||!t||dragId===targetId) return;
+  if(isDescendant(targetId, dragId)){ toast('その中には移動できません'); return; }
+  d.parentId=t.parentId; d.order=t.order+0.5;   // 落とした項目の直後（同じ並び）へ
+  renderView();
+  call('applyMoves',[[{id:d.id, parentId:d.parentId, order:d.order}]]).catch(failNote);
+  reflow(d.tab, d.parentId);
+}
 
 function startEdit(id){ STATE.editingId=id; STATE.menuId=null; renderView(); }
 function focusEditing(){
