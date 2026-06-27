@@ -137,6 +137,7 @@ function getData(dateStr) {
   ensureSubscriptionTab_();   // 「定期購入」大タブが無ければ一度だけ用意（既にあれば何もしない）
   ensurePrioritySheet_();     // 「優先順位」シートが無ければ一度だけ用意（AI連携の土台）
   ensurePolicySheet_();       // 「方針」シート（全体の優先ルール）が無ければ一度だけ用意
+  ensureScheduleConfig_();    // 「スケジュール設定」シート（予定の組み方）が無ければ一度だけ用意
   return {
     today: today,
     tabs: readTabs_(),
@@ -782,6 +783,50 @@ function setupPolicySheet() {
     if (getSS_().getSheetByName('方針')) return '「方針」シートは既にあります（中身は変更していません）。';
     createPolicySheet_();
     return '「方針」シートを作成しました。';
+  });
+}
+
+// ===== スケジュール設定シート（Coworkが予定を組む時の設定）====================
+// 起床・就寝・昼食、ブロックごとの所要分を置く。ユーザーが編集→Coworkが読んで予定生成。
+function ensureScheduleConfig_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('SCHED_CONFIG_DONE')) return;
+  if (getSS_().getSheetByName('スケジュール設定')) { props.setProperty('SCHED_CONFIG_DONE', '1'); return; }
+  withLock_(function () { if (!getSS_().getSheetByName('スケジュール設定')) createScheduleConfig_(); });
+  props.setProperty('SCHED_CONFIG_DONE', '1');
+}
+function createScheduleConfig_() {
+  const ss = getSS_();
+  const sh = ss.insertSheet('スケジュール設定');
+  const rows = [
+    ['項目', '値', '所要(分)', '種別', 'メモ'],
+    ['起床', '07:00', '', '', '6〜7時で調整'],
+    ['就寝', '23:00', '', '', ''],
+    ['昼食を先に', 'はい', '', '', 'はい/いいえ'],
+    ['', '', '', '', ''],
+    ['＝＝ ブロック（上から順に並べる）＝＝', '', '所要(分)', '種別', 'メモ'],
+    ['家事ルーティン', '', 90, 'タスク', '洗濯→片付け→キッチン→お風呂→洗面台→トイレ→掃除機'],
+    ['毎日タスク', '', 20, 'タスク', '聴診器・看護師保険'],
+    ['お金がかからない手続き', '', 60, 'タスク', '健診予約・楽天保険確認 等'],
+    ['期限の用事', '', 60, 'タスク', '運転免許証(7/16)準備・写真 等'],
+    ['買い出し', '', 90, 'タスク', '定期購入チェック→スーパー'],
+    ['夕食・休憩', '', 60, '休憩', ''],
+    ['連絡（下書き＋送信予約）', '', 45, 'タスク', '役所等は平日メモ'],
+    ['デスクワーク', '', 45, 'タスク', '容量整理・計画'],
+    ['お風呂・スキンケア', '', 30, '休憩', ''],
+    ['翌日準備・自由', '', 30, 'タスク', '']
+  ];
+  sh.getRange(1, 1, rows.length, 5).setValues(rows);
+  sh.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#efece6');
+  sh.setFrozenRows(1);
+  sh.autoResizeColumns(1, 5);
+  return rows.length;
+}
+function setupScheduleConfig() {
+  return withLock_(function () {
+    if (getSS_().getSheetByName('スケジュール設定')) return '「スケジュール設定」シートは既にあります（中身は変更していません）。';
+    createScheduleConfig_();
+    return '「スケジュール設定」シートを作成しました。値を編集してください。';
   });
 }
 
