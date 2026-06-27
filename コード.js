@@ -15,11 +15,35 @@
  *           「画面.html」を貼り付け →［デプロイ］→ ウェブアプリ。
  */
 
-// 読み込み時に一度だけ自動で repairTabIds を試す（成功したらフラグを立てて以後スキップ）。
-function ensureTabIdsRepaired_() {
-  const props = PropertiesService.getScriptProperties();
-  if (props.getProperty('TABIDS_FIX_DONE')) return;
-  try { repairTabIds(); props.setProperty('TABIDS_FIX_DONE', '1'); } catch (e) { /* 失敗なら次回再試行 */ }
+// このユーザーの「タブ名 → ノードが実際に使っている正しいタブID」。
+// タブが作り直されてID不一致になっても、毎回これに合わせて自己修復する。
+const TAB_FIX = [
+  { name: '生活', id: 'Nmqrnkvoo2pkr', type: 'normal', order: 0 },
+  { name: '定期購入', id: 'Nmqutv5qe5m8j', type: 'normal', order: 1 },
+  { name: 'ファイナンス', id: 'Nmqrnkvtf92zg', type: 'normal', order: 2 },
+  { name: '音楽', id: 'Nmqrnkwhl2r53', type: 'normal', order: 3 },
+  { name: 'カメラ', id: 'Nmqrnkwoy68u7', type: 'normal', order: 4 },
+  { name: 'お仕事', id: 'Nmqrnkwvcggn5', type: 'work', order: 5 }
+];
+// 毎回の読み込みで、タブの存在とIDをノードに合わせて自己修復する（フラグ無し＝再発しても直る）。
+function ensureTabsCorrect_() {
+  try {
+    return withLock_(function () {
+      const nv = nodeSheet_().getDataRange().getValues();
+      const count = {};
+      for (let i = 1; i < nv.length; i++) { const t = String(nv[i][1]); count[t] = (count[t] || 0) + 1; }
+      const sh = tabSheet_();
+      const v = sh.getDataRange().getValues();
+      const rowByName = {};
+      for (let i = 1; i < v.length; i++) rowByName[String(v[i][1] || '').trim()] = i + 1;
+      TAB_FIX.forEach(function (t) {
+        if (!count[t.id]) return;                       // そのIDのノードが無ければ触らない（安全）
+        const r = rowByName[t.name];
+        if (r) { if (String(v[r - 1][0]) !== t.id) sh.getRange(r, 1).setValue(t.id); }  // IDズレを直す
+        else { sh.appendRow([t.id, t.name, t.type, t.order]); }                          // 行ごと消えていたら復元
+      });
+    });
+  } catch (e) { /* 失敗しても読み込みは続行 */ }
 }
 
 // 【復旧用・一度だけ実行】タブIDとノードのタブIDがズレて「全タブが空」に見える事故を直す。
@@ -108,7 +132,7 @@ function showWebAppUrl() {
 // ===== 画面の初期データ ======================================================
 function getData(dateStr) {
   const today = dateStr || todayStr_();
-  ensureTabIdsRepaired_();     // タブIDがノードとズレていたら自動で直す（復旧）
+  ensureTabsCorrect_();        // タブの存在とIDをノードに合わせて毎回自己修復（再発防止）
   ensureSeed_();
   ensureSubscriptionTab_();   // 「定期購入」大タブが無ければ一度だけ用意（既にあれば何もしない）
   ensurePrioritySheet_();     // 「優先順位」シートが無ければ一度だけ用意（AI連携の土台）
@@ -373,6 +397,8 @@ function bulkSetMark(ids, kind) {
 // 【Undo用】タブ・ノードのシートを、渡された内容で丸ごと書き直す（直前の状態へ復元）。
 // 「今日のチェック」シートには触らない。
 function restoreAll(tabs, nodes) {
+  // 安全弁：タブが空のデータでは全消去しない（タブ消失→再生成事故の防止）。
+  if (!tabs || !tabs.length) return { ok: false, skipped: 'no-tabs' };
   return withLock_(function () {
     const tsh = tabSheet_(), nsh = nodeSheet_();
     clearBody_(tsh); clearBody_(nsh);
