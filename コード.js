@@ -15,6 +15,13 @@
  *           「画面.html」を貼り付け →［デプロイ］→ ウェブアプリ。
  */
 
+// 読み込み時に一度だけ自動で repairTabIds を試す（成功したらフラグを立てて以後スキップ）。
+function ensureTabIdsRepaired_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('TABIDS_FIX_DONE')) return;
+  try { repairTabIds(); props.setProperty('TABIDS_FIX_DONE', '1'); } catch (e) { /* 失敗なら次回再試行 */ }
+}
+
 // 【復旧用・一度だけ実行】タブIDとノードのタブIDがズレて「全タブが空」に見える事故を直す。
 // タブ名ごとに、実際にノードが使っている正しいタブIDへ書き戻す（ノードが存在するIDのみ採用）。
 // 何度実行してもOK（ズレている行だけ直す）。GASエディタで repairTabIds を選んで ▶実行。
@@ -51,7 +58,8 @@ function repairTabIds() {
 const CONFIG = {
   // 保存先。ID/URL を入れると固定。空''なら バウンドのアクティブブック →
   // 無ければ「ToDoメモ」を自動作成して記憶。
-  SS_ID: '',
+  // ★データのある本物のブックに固定（別の空ブックを見てしまう事故の防止）。
+  SS_ID: '1Rpfxi5N6AqtXCKasAIuE6immS8CC4cCgfoYM2Pe_S8s',
   TAB_SHEET: 'タブ',
   NODE_SHEET: 'ノード',
   CHECK_SHEET: '今日のチェック',
@@ -100,6 +108,7 @@ function showWebAppUrl() {
 // ===== 画面の初期データ ======================================================
 function getData(dateStr) {
   const today = dateStr || todayStr_();
+  ensureTabIdsRepaired_();     // タブIDがノードとズレていたら自動で直す（復旧）
   ensureSeed_();
   ensureSubscriptionTab_();   // 「定期購入」大タブが無ければ一度だけ用意（既にあれば何もしない）
   ensurePrioritySheet_();     // 「優先順位」シートが無ければ一度だけ用意（AI連携の土台）
