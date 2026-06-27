@@ -113,6 +113,18 @@
   .ovtext p{margin:4px 0;line-height:1.7;font-size:14px}
   .ovtext .ovsp{height:8px}
   .datebar{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 6px}
+  /* 予定タイムライン */
+  .schlist{margin:8px 0 2px}
+  .schitem{display:flex;gap:13px;padding:11px 2px;border-top:1px solid #ece6da}
+  .schitem:first-child{border-top:none}
+  .schtime{flex:none;width:104px;font-size:13px;color:#6f675e;padding-top:2px;letter-spacing:.02em;white-space:nowrap}
+  .schbody{flex:1;min-width:0}
+  .schtitle{font-family:'Shippori Mincho',serif;font-size:15px;color:var(--ink);font-weight:600;line-height:1.45}
+  .schmemo{font-size:12.5px;color:var(--sub);line-height:1.65;margin-top:3px;word-break:break-word}
+  .schtag{font-size:10.5px;color:#b3a999;margin-left:8px;font-weight:400}
+  .schitem.next{opacity:.5}
+  .schitem.sleep{border-top:1.5px solid #cbbfae;margin-top:6px;padding-top:13px}
+  .schtitle a,.schmemo a{color:var(--accent)}
   /* 選択ハイライト */
   .row.sel{background:#efe7db;box-shadow:inset 0 0 0 1.5px var(--accent);border-radius:9px}
   /* 下部入力バー（コンポーザ） */
@@ -701,11 +713,12 @@ function renderSchedule(){
   var v=document.getElementById('view'), d=STATE.schedule;
   if(!d){ v.innerHTML='<div class="loading">よみこみ中…</div>'; loadSchedule(); return; }
   var date=d.date||STATE.scheduleDate||STATE.today;
-  var html='<div class="card"><div class="card-head"><div class="card-title">📅 予定<span class="en">'+esc(date)+'</span></div>'+
+  var nowStr='';
+  if(date===STATE.today){ var nd=new Date(); nowStr='　現在 '+(nd.getHours()<10?'0':'')+nd.getHours()+':'+(nd.getMinutes()<10?'0':'')+nd.getMinutes(); }
+  var html='<div class="card"><div class="card-head"><div class="card-title">📅 予定<span class="en">'+esc(date)+esc(nowStr)+'</span></div>'+
     '<button class="tbtn" onclick="STATE.schedule=null;renderSchedule();">↻ 更新</button></div>';
-  html+='<div class="shoprow"><button class="shopopen" onclick="makeSchedule()">✨ 自動で立てる</button>'+
-    '<button class="tbtn" onclick="openPasteSchedule()">✏️ 貼り付け（Cowork等）</button></div>'+
-    '<div class="shophint" style="margin:0 2px 6px">「自動」＝アプリが優先順位で時間割化／「貼り付け」＝Coworkが作った予定を貼って保存</div>';
+  html+='<div class="shoprow"><button class="shopopen" onclick="openPasteSchedule()">✏️ 予定を貼り付け</button>'+
+    '<span class="shophint">Coworkが作った予定を貼り付けて保存</span></div>';
   var dates=d.dates||[];
   if(dates.length){
     html+='<div class="datebar">';
@@ -714,18 +727,25 @@ function renderSchedule(){
   }
   if(d.empty){
     html+='<div class="empty">'+esc(date)+' の予定はまだありません'+
-      '<span class="sw">上の「✨ 今日の予定を立てる」を押すと、自動で作成します</span></div>';
+      '<span class="sw">「✏️ 予定を貼り付け」から、Coworkが作った予定を貼って保存できます</span></div>';
     if(d.url) html+='<div class="hint">保存先：<a href="'+esc(d.url)+'" target="_blank" rel="noopener">ToDoスケジュール を開く</a></div>';
   }else{
-    var rows=d.rows||[], maxc=0; rows.forEach(function(r){ if(r.length>maxc) maxc=r.length; });
-    if(maxc<=1){
-      html+='<div class="ovtext">'; rows.forEach(function(r){ var t=(r[0]||'').trim(); html+= t?'<p>'+linkify(t)+'</p>':'<div class="ovsp"></div>'; }); html+='</div>';
-    }else{
-      html+='<div class="ovwrap"><table class="ovtable">';
-      rows.forEach(function(r,ri){ html+='<tr>'; for(var c=0;c<maxc;c++){ var cell=r[c]||''; html+= ri===0?'<th>'+esc(cell)+'</th>':'<td>'+linkify(cell)+'</td>'; } html+='</tr>'; });
-      html+='</table></div>';
+    var rows=d.rows||[], start=0;
+    if(rows.length && (/時間|時刻/.test(rows[0][0]||'') || /予定/.test(rows[0][1]||''))) start=1;
+    html+='<div class="schlist">';
+    for(var i=start;i<rows.length;i++){
+      var r=rows[i]||[]; var time=(r[0]||'').trim(), title=(r[1]||'').trim(), memo=(r[2]||'').trim();
+      if(!time && !title && !memo) continue;
+      var hm=time.match(/(\d{1,2})[:：]/), hr=hm?parseInt(hm[1],10):-1;
+      var isNext = hr>=0 && hr<6;                 // 0:00–5:59 ＝ 翌日以降
+      var isSleep = /就寝|寝る/.test(title);
+      html+='<div class="schitem'+(isNext?' next':'')+(isSleep?' sleep':'')+'">'+
+        '<div class="schtime">'+esc(time)+'</div>'+
+        '<div class="schbody"><div class="schtitle">'+linkify(title)+(isNext?'<span class="schtag">翌日以降</span>':'')+'</div>'+
+        (memo?'<div class="schmemo">'+linkify(memo)+'</div>':'')+'</div></div>';
     }
-    html+='<div class="hint">アプリが方針の優先順位で立てた予定です。「✨今日の予定を立てる」でやり直し ／ ↻更新で再読込。「ToDoスケジュール」スプレッドシートにも保存されます。</div>';
+    html+='</div>';
+    html+='<div class="hint">「✏️ 予定を貼り付け」で更新できます（日付タブに保存）。</div>';
   }
   html+='</div>';
   v.innerHTML=html;
