@@ -228,6 +228,9 @@
   .minput{display:block;width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;
     font:inherit;font-size:15px;color:var(--ink);background:var(--paper);margin-bottom:12px;outline:none}
   .minput:focus{border-color:var(--accent)}
+  .pastebox{display:block;width:100%;height:160px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;
+    font:inherit;font-size:13px;line-height:1.5;color:var(--ink);background:var(--paper);margin-bottom:12px;outline:none;resize:vertical}
+  .pastebox:focus{border-color:var(--accent)}
 
   /* ---- 印刷 ---- */
   #printArea{display:none}
@@ -607,7 +610,7 @@ function clearBought(tabId){
 }
 
 /* ===== 概要（ToDoOverview シートを表示）===== */
-function openOverview(){ commitComposer(); STATE.selected=null; STATE.editing=false; cleanupEmptyNodes(); STATE.shopping=null; STATE.active=OVERVIEW; STATE.menuId=null; renderTabs(); renderOverview(); }
+function openOverview(){ commitComposer(); STATE.selected=null; STATE.editing=false; cleanupEmptyNodes(); STATE.shopping=null; STATE.active=OVERVIEW; STATE.menuId=null; renderTabs(); renderView(); }
 function loadOverview(){
   call('getOverview',[]).then(function(d){ STATE.overview=d||{empty:true}; if(STATE.active===OVERVIEW) renderOverview(); })
     .catch(function(){ STATE.overview={empty:true,err:true}; if(STATE.active===OVERVIEW) renderOverview(); });
@@ -642,7 +645,7 @@ function renderOverview(){
 }
 
 /* ===== 予定（ToDoスケジュール の日付タブを表示）===== */
-function openSchedule(){ commitComposer(); STATE.selected=null; STATE.editing=false; cleanupEmptyNodes(); STATE.shopping=null; STATE.active=SCHEDULE; STATE.menuId=null; STATE.scheduleDate=STATE.today; STATE.schedule=null; renderTabs(); renderSchedule(); }
+function openSchedule(){ commitComposer(); STATE.selected=null; STATE.editing=false; cleanupEmptyNodes(); STATE.shopping=null; STATE.active=SCHEDULE; STATE.menuId=null; STATE.scheduleDate=STATE.today; STATE.schedule=null; renderTabs(); renderView(); }
 function loadSchedule(){
   call('getSchedule',[STATE.scheduleDate||STATE.today]).then(function(d){ STATE.schedule=d||{empty:true}; if(STATE.active===SCHEDULE) renderSchedule(); })
     .catch(function(){ STATE.schedule={empty:true,err:true}; if(STATE.active===SCHEDULE) renderSchedule(); });
@@ -656,14 +659,53 @@ function makeSchedule(){
     toast('今日の予定を立てました');
   }).catch(failNote);
 }
+// 貼り付けたテキストを [時間,予定,メモ] の行に変換（タブ区切り優先・時刻行も対応）
+function parseScheduleText(text){
+  text=(text||'').trim(); if(!text) return [];
+  var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
+  if(lines.length<=1){ // 1行に詰まっている時は時間帯(HH:MM–HH:MM)の前で区切る
+    var s=text.replace(/(\d{1,2}[:：]\d{2}\s*[–\-~〜]\s*\d{1,2}[:：]\d{2})/g,'\n$1');
+    lines=s.split(/\n/).filter(function(l){return l.trim();});
+  }
+  var rows=[];
+  lines.forEach(function(line){
+    line=line.trim();
+    if(line.indexOf('\t')>=0){ var c=line.split('\t'); rows.push([(c[0]||'').trim(),(c[1]||'').trim(),c.slice(2).join(' ').trim()]); return; }
+    var m=line.match(/^(\d{1,2}[:：]\d{2}(?:\s*[–\-~〜]\s*\d{1,2}[:：]\d{2})?)\s*(.*)$/);
+    if(m) rows.push([m[1].trim(), m[2].trim(), '']); else rows.push(['', line, '']);
+  });
+  return rows;
+}
+function openPasteSchedule(){
+  document.getElementById('modalBox').innerHTML=
+    '<div class="mtitle">予定を貼り付け</div>'+
+    '<div class="mdesc">Coworkが作った予定の表をここに貼り付け → 保存。<br>各行「時間（タブ）予定（タブ）メモ」が理想ですが、「14:30–15:00 昼食」のような形でも取り込めます。</div>'+
+    '<textarea id="pastebox" class="pastebox" placeholder="14:30–15:00&#9;昼食・休憩&#10;15:00–16:00&#9;家事ルーティン&#9;洗濯→片付け→キッチン…"></textarea>'+
+    '<button class="mbtn rec" onclick="savePastedSchedule()">保存して表示</button>'+
+    '<button class="mlink" onclick="closeModal()">キャンセル</button>';
+  document.getElementById('modal').classList.add('open');
+  setTimeout(function(){ var t=document.getElementById('pastebox'); if(t) t.focus(); },40);
+}
+function savePastedSchedule(){
+  var t=document.getElementById('pastebox'); var rows=parseScheduleText(t?t.value:'');
+  if(!rows.length){ toast('貼り付け内容が空です'); return; }
+  var h=rows[0]; if(!(/時間|時刻/.test(h[0]||'') || /予定/.test(h[1]||''))) rows.unshift(['時間','予定','メモ']);
+  closeModal(); toast('保存中…');
+  call('saveScheduleRows',[STATE.today, rows]).then(function(d){
+    STATE.schedule=d; STATE.scheduleDate=(d&&d.date)||STATE.today;
+    if(STATE.active===SCHEDULE) renderSchedule();
+    toast('予定を保存しました');
+  }).catch(failNote);
+}
 function renderSchedule(){
   var v=document.getElementById('view'), d=STATE.schedule;
   if(!d){ v.innerHTML='<div class="loading">よみこみ中…</div>'; loadSchedule(); return; }
   var date=d.date||STATE.scheduleDate||STATE.today;
   var html='<div class="card"><div class="card-head"><div class="card-title">📅 予定<span class="en">'+esc(date)+'</span></div>'+
     '<button class="tbtn" onclick="STATE.schedule=null;renderSchedule();">↻ 更新</button></div>';
-  html+='<div class="shoprow"><button class="shopopen" onclick="makeSchedule()">✨ 今日の予定を立てる</button>'+
-    '<span class="shophint">❀を付けた今日のタスクを、方針の優先順位で時間割にします</span></div>';
+  html+='<div class="shoprow"><button class="shopopen" onclick="makeSchedule()">✨ 自動で立てる</button>'+
+    '<button class="tbtn" onclick="openPasteSchedule()">✏️ 貼り付け（Cowork等）</button></div>'+
+    '<div class="shophint" style="margin:0 2px 6px">「自動」＝アプリが優先順位で時間割化／「貼り付け」＝Coworkが作った予定を貼って保存</div>';
   var dates=d.dates||[];
   if(dates.length){
     html+='<div class="datebar">';

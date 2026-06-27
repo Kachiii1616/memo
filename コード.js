@@ -197,6 +197,29 @@ function getScheduleInfo() {
   return { url: ss.getUrl(), name: ss.getName() };
 }
 
+// 【貼り付け保存】Cowork等が作った予定の表（rows=[[時間,予定,メモ],...]）を
+// 「ToDoスケジュール」の日付タブへ保存（同日は上書き）。戻り値は getSchedule(date)。
+function saveScheduleRows(date, rows) {
+  date = date || todayStr_();
+  return withLock_(function () {
+    const ss = getScheduleSS_();
+    let sh = ss.getSheetByName(date);
+    if (sh) sh.clear(); else sh = ss.insertSheet(date);
+    let norm = (rows || []).map(function (r) {
+      r = r || [];
+      return [String(r[0] == null ? '' : r[0]), String(r[1] == null ? '' : r[1]), String(r[2] == null ? '' : r[2])];
+    }).filter(function (r) { return r[0] || r[1] || r[2]; });
+    if (!norm.length) norm = [['時間', '予定', 'メモ']];
+    sh.getRange(1, 1, norm.length, 3).setValues(norm);
+    sh.getRange(1, 1, 1, 3).setFontWeight('bold').setBackground('#efece6');
+    sh.setFrozenRows(1);
+    sh.autoResizeColumns(1, 3);
+    const def = ss.getSheetByName('シート1') || ss.getSheetByName('Sheet1');
+    if (def && ss.getSheets().length > 1) { try { ss.deleteSheet(def); } catch (e) {} }
+    return getSchedule(date);
+  });
+}
+
 // 【アプリ内で生成】❀/★を付けた今日のタスクを、方針の優先順位ルールで時間割にして
 // 「ToDoスケジュール」の日付タブへ書き込む（同日は上書き）。APIキー不要のルールベース。
 // 並び：家事 → 連絡 → 期限あり → 生活の買い出し → エリア順(生活→ファイナンス→活動→…)。お仕事は別枠で末尾。
