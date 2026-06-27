@@ -111,26 +111,6 @@
   .ovtext p{margin:4px 0;line-height:1.7;font-size:14px}
   .ovtext .ovsp{height:8px}
   .datebar{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 6px}
-  /* 選択ハイライト */
-  .row.sel{background:#efe7db;box-shadow:inset 0 0 0 1.5px var(--accent);border-radius:9px}
-  /* 下部入力バー（コンポーザ） */
-  body.has-composer{padding-bottom:calc(150px + env(safe-area-inset-bottom))}
-  .composer{position:fixed;left:0;right:0;bottom:0;z-index:45;background:var(--paper2);
-    border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(75,69,62,.10);
-    padding:8px 14px calc(10px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
-  .composer .cmpsel{font-size:11.5px;color:var(--sub);margin:0 2px 6px;line-height:1.5}
-  .cmpx{border:none;background:transparent;color:var(--sub);cursor:pointer;font-size:13px;padding:0 4px;margin-left:4px}
-  .cmpinput{display:block;width:100%;border:1px solid var(--line);border-radius:11px;padding:10px 12px;
-    font:inherit;font-size:15px;color:var(--ink);background:var(--paper);outline:none}
-  .cmpinput:focus{border-color:var(--accent)}
-  .cmpctrl{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
-  .cmpl{font-size:11.5px;color:var(--sub)}
-  .clv{border:1px solid var(--line);background:var(--paper);cursor:pointer;color:var(--sub);
-    font-size:12.5px;padding:6px 13px;border-radius:999px}
-  .clv.on{border-color:var(--accent);color:var(--ink);background:#f3ece4}
-  .cmpgo{margin-left:auto;border:1px solid var(--accent);background:#f3ece4;cursor:pointer;color:var(--ink);
-    font-family:'Shippori Mincho',serif;font-size:14px;padding:8px 18px;border-radius:999px;letter-spacing:.03em}
-  .cmpgo:hover{background:#eee2d6}
   .bulkbar button{border:1px solid var(--line);background:var(--paper2);cursor:pointer;color:var(--sub);
     font-size:12px;padding:4px 10px;border-radius:8px;line-height:1.2}
   .bulkbar button:hover{border-color:var(--accent);color:var(--ink)}
@@ -220,7 +200,7 @@
   #printArea{display:none}
   @media print{
     body{background:#fff;padding:0}
-    .wrap,#toast,.modal-bg,.tools,.composer{display:none !important}
+    .wrap,#toast,.modal-bg,.tools{display:none !important}
     #printArea{display:block !important;color:#3a342e;font-family:'Shippori Mincho',serif;padding:6mm}
     .phead{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1.5px solid #cbbfae;padding-bottom:6px;margin-bottom:14px}
     .pbrand{font-family:'Cormorant Garamond',serif;font-size:30px;letter-spacing:.04em}
@@ -259,23 +239,12 @@
   <footer><div class="hr"></div>DAILY &nbsp;·&nbsp; TO DO &nbsp;·&nbsp; MEMO</footer>
 </div>
 <div id="toast"></div>
-<div id="composer" class="composer" style="display:none">
-  <div id="cmpsel" class="cmpsel"></div>
-  <input id="cmpinput" class="cmpinput" maxlength="200" placeholder="追加する内容を入力" onkeydown="cmpKey(event)">
-  <div class="cmpctrl">
-    <span class="cmpl">レベル</span>
-    <button class="clv" data-l="0" onclick="setCLevel(0)">中タブ</button>
-    <button class="clv" data-l="1" onclick="setCLevel(1)">小タブ</button>
-    <button class="clv" data-l="2" onclick="setCLevel(2)">孫</button>
-    <button id="cmpgo" class="cmpgo" onclick="composerSubmit()">＋ 追加</button>
-  </div>
-</div>
 <div id="printArea"></div>
 <div id="modal" class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal" id="modalBox"></div></div>
 
 <script>
 /* ===== 状態 ===== */
-var STATE={today:'',tabs:[],nodes:[],todayChecks:[],active:null,editTabs:false,editingId:null,menuId:null,shopping:null,selected:null,editing:false,cLevel:1};
+var STATE={today:'',tabs:[],nodes:[],todayChecks:[],active:null,editTabs:false,editingId:null,menuId:null,shopping:null};
 var TAB_COLORS=['#b89a8c','#9bb0b8','#c2a9b4','#a9b29a','#c9b489','#a8a59c'];
 var DAILY='__daily__';
 var OVERVIEW='__overview__';
@@ -399,7 +368,7 @@ function moveTab(i,dir){
 }
 
 /* ===== ビュー ===== */
-function renderView(){ if(STATE.shopping)renderShop(STATE.shopping); else if(STATE.active===SCHEDULE)renderSchedule(); else if(STATE.active===OVERVIEW)renderOverview(); else if(STATE.active===DAILY)renderDaily(); else renderTab(STATE.active); renderComposer(); }
+function renderView(){ if(STATE.shopping)renderShop(STATE.shopping); else if(STATE.active===SCHEDULE)renderSchedule(); else if(STATE.active===OVERVIEW)renderOverview(); else if(STATE.active===DAILY)renderDaily(); else renderTab(STATE.active); }
 
 function childrenOf(tabId,parentId){
   return STATE.nodes.filter(function(n){return n.tab===tabId&&n.parentId===parentId;})
@@ -427,10 +396,11 @@ function renderTab(tabId){
     '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'none\')">解除</button></div>';
   html+='<div class="tree" ondblclick="if(event.target===this)addRoot(\''+jsq(tabId)+'\')">'+renderKids(tabId,'',0)+'</div>';
   if(!all.length) html+='<div class="empty" ondblclick="addRoot(\''+jsq(tabId)+'\')">からっぽです<span class="sw">ここをダブルクリックで追加</span></div>';
-  html+='<div class="addline"><button onclick="addRoot(\''+jsq(tabId)+'\')">＋ 中タブを追加</button></div>';
-  html+='<div class="hint">行を<b>1タップ＝選択</b>／<b>もう1タップ＝編集</b>。入力・追加・レベル(中/小/孫)は<b>下のバー</b>でまとめて操作。<br>左の<b>⠿をドラッグで移動</b> ・ 右のマークで '+markIcon('daily',true)+'<b style="color:var(--gold)">定期</b>／'+markIcon('today',true)+'<b style="color:var(--rose)">その日</b> ・ … で移動/削除</div>';
+  html+='<div class="addline"><button onclick="addRoot(\''+jsq(tabId)+'\')">＋ 大きな項目を追加</button></div>';
+  html+='<div class="hint">クリックで編集 ・ <b>ダブルクリックで下に追加</b>（中タブ→中に子／子→同じ並び）・ 左の<b>⠿をドラッグで移動</b> ・ Enterで確定<br>右のマークをタップで '+markIcon('daily',true)+'<b style="color:var(--gold)">定期</b>（毎日）／ '+markIcon('today',true)+'<b style="color:var(--rose)">その日</b> を選択（もう一度で解除）・ 上の「タブ全体」で一括 ／ … ボタンで移動・削除</div>';
   html+='</div>';
   v.innerHTML=html;
+  focusEditing();
 }
 
 function renderKids(tabId,parentId,depth){
@@ -446,18 +416,26 @@ function renderKids(tabId,parentId,depth){
 
 function nodeRow(n,depth){
   var kids=hasKids(n);
-  var cls='row'+(n.done?' done':'')+(STATE.selected===n.id?' sel':'')+(depth===0?' sec':depth===1?' sub':' d'+Math.min(depth,4));
+  var editing=STATE.editingId===n.id;
+  var cls='row'+(n.done?' done':'')+(depth===0?' sec':depth===1?' sub':' d'+Math.min(depth,4));
   var h='<div class="'+cls+'" data-id="'+n.id+'">';
   h+='<div class="drag" title="ドラッグで移動" onpointerdown="dragStart(event,\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16" width="11" height="11"><g fill="currentColor"><circle cx="6" cy="3" r="1.3"/><circle cx="10" cy="3" r="1.3"/><circle cx="6" cy="8" r="1.3"/><circle cx="10" cy="8" r="1.3"/><circle cx="6" cy="13" r="1.3"/><circle cx="10" cy="13" r="1.3"/></g></svg></div>';
   h+='<div class="twist'+(kids?'':' empty')+'" onclick="toggleCollapse(\''+jsq(n.id)+'\')">'+(kids?(n.collapsed?'▶':'▼'):'•')+'</div>';
   h+='<div class="check'+(n.done?' on':'')+'" onclick="toggleDone(\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>';
-  h+='<div class="label" title="1回タップ＝選択／もう1回＝編集" onclick="rowClick(\''+jsq(n.id)+'\')" ondblclick="rowDbl(\''+jsq(n.id)+'\')">'+linkify(n.text)+'</div>';
+  if(editing){
+    h+='<div class="label"><input class="ed" id="ed_'+n.id+'" value="'+esc(n.text)+'" maxlength="200"></div>';
+  }else{
+    h+='<div class="label" title="クリックで編集／ダブルクリックで下に項目を追加" onclick="rowEdit(\''+jsq(n.id)+'\')" ondblclick="rowAddSmart(\''+jsq(n.id)+'\')">'+linkify(n.text)+'</div>';
+  }
   h+='<button class="mk2 daily'+(n.daily?' on':'')+'" title="定期（毎日くりかえし）／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'daily\')">'+markIcon('daily',n.daily)+'</button>';
   h+='<button class="mk2 today'+(n.today?' on':'')+'" title="その日にすること／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'today\')">'+markIcon('today',n.today)+'</button>';
   h+='<button class="menu'+(STATE.menuId===n.id?' on':'')+'" title="操作" onclick="toggleMenu(\''+jsq(n.id)+'\')">⋯</button>';
   h+='</div>';
   if(STATE.menuId===n.id){
-    var tb='<div class="toolbar">';
+    var tb='<div class="toolbar">'+
+       '<button onclick="addChild(\''+jsq(n.id)+'\')">＋ 子項目</button>'+
+       '<button onclick="setMark(\''+jsq(n.id)+'\',\'daily\')">'+markIcon('daily',true)+' 定期</button>'+
+       '<button onclick="setMark(\''+jsq(n.id)+'\',\'today\')">'+markIcon('today',true)+' その日</button>';
     if(kids){ // この中（中タブ）をまとめて
       tb+='<button class="tbbulk" onclick="bulkMarkNode(\''+jsq(n.id)+'\',\'daily\')">'+markIcon('daily',true)+' 中ぜんぶ定期</button>'+
           '<button class="tbbulk" onclick="bulkMarkNode(\''+jsq(n.id)+'\',\'today\')">'+markIcon('today',true)+' 中ぜんぶその日</button>'+
@@ -465,6 +443,8 @@ function nodeRow(n,depth){
     }
     tb+='<button onclick="moveNode(\''+jsq(n.id)+'\',-1)">↑ 上へ</button>'+
        '<button onclick="moveNode(\''+jsq(n.id)+'\',1)">↓ 下へ</button>'+
+       '<button onclick="indentNode(\''+jsq(n.id)+'\')">⇥ 字下げ</button>'+
+       '<button onclick="outdentNode(\''+jsq(n.id)+'\')">⇤ 字上げ</button>'+
        '<button onclick="removeNode(\''+jsq(n.id)+'\')">✕ 削除</button>'+
        '</div>';
     h+=tb;
@@ -483,7 +463,7 @@ function snap(){ // 変更の直前に現在の状態を保存
 function undo(){
   if(!UNDO.length){ toast('戻せる変更はありません'); return; }
   var s=JSON.parse(UNDO.pop());
-  STATE.tabs=s.tabs; STATE.nodes=s.nodes; STATE.selected=null; STATE.editing=false; STATE.menuId=null;
+  STATE.tabs=s.tabs; STATE.nodes=s.nodes; STATE.editingId=null; STATE.menuId=null;
   if(STATE.active!==DAILY && !STATE.tabs.some(function(t){return t.id===STATE.active;}))
     STATE.active=(STATE.tabs[0]&&STATE.tabs[0].id)||DAILY;
   renderTabs(); renderView();
@@ -496,12 +476,13 @@ function undo(){
 function byId(id){return STATE.nodes.filter(function(n){return n.id===id;})[0];}
 function siblings(n){return childrenOf(n.tab,n.parentId);}
 
-function addRoot(tabId){ STATE.selected=null; STATE.editing=false; STATE.cLevel=0; setComposerInput(''); renderView(); focusComposerInput(); }
+function addRoot(tabId){ createNode(tabId,'',endOrder(tabId,''),''); }
+function addChild(id){ var n=byId(id);if(!n)return; n.collapsed=false; createNode(n.tab,n.id,endOrder(n.tab,n.id),''); }
 function endOrder(tabId,parentId){ var s=childrenOf(tabId,parentId);return s.length?s[s.length-1].order+1:0; }
 
 // 取り残された空欄項目を一掃（編集中のものは除く）。サーバ側からも消す。
 function cleanupEmptyNodes(){
-  var dead=STATE.nodes.filter(function(n){ return !n.text; });
+  var dead=STATE.nodes.filter(function(n){ return !n.text && n.id!==STATE.editingId; });
   if(!dead.length) return;
   var ids={}; dead.forEach(function(n){ ids[n.id]=true; });
   STATE.nodes=STATE.nodes.filter(function(n){ return !ids[n.id]; });
@@ -510,15 +491,15 @@ function cleanupEmptyNodes(){
 }
 // タブ切替時：編集中なら確定（空なら削除）し、空欄を一掃してから切替
 function switchTab(id){
-  commitComposer();
-  STATE.selected=null; STATE.editing=false;
+  commitEdit(false);
+  STATE.editingId=null;
   cleanupEmptyNodes();
   STATE.shopping=null;
   STATE.active=id; renderTabs(); renderView();
 }
 
 /* ===== 買い物リスト（定期購入向け：◆店ごと）===== */
-function openShop(tabId){ commitComposer(); STATE.selected=null; STATE.editing=false; cleanupEmptyNodes(); STATE.shopping=tabId; STATE.menuId=null; renderView(); syncShop(tabId); }
+function openShop(tabId){ commitEdit(false); STATE.editingId=null; cleanupEmptyNodes(); STATE.shopping=tabId; STATE.menuId=null; renderView(); syncShop(tabId); }
 function closeShop(){ STATE.shopping=null; renderView(); }
 // 買い物リストをスプレッドシート「買い物リスト」へ書き出し（Cowork等が読める形）
 var _shopSyncT=null;
@@ -592,7 +573,7 @@ function clearBought(tabId){
 }
 
 /* ===== 概要（ToDoOverview シートを表示）===== */
-function openOverview(){ commitComposer(); STATE.selected=null; STATE.editing=false; cleanupEmptyNodes(); STATE.shopping=null; STATE.active=OVERVIEW; STATE.menuId=null; renderTabs(); renderOverview(); }
+function openOverview(){ commitEdit(false); STATE.editingId=null; cleanupEmptyNodes(); STATE.shopping=null; STATE.active=OVERVIEW; STATE.menuId=null; renderTabs(); renderOverview(); }
 function loadOverview(){
   call('getOverview',[]).then(function(d){ STATE.overview=d||{empty:true}; if(STATE.active===OVERVIEW) renderOverview(); })
     .catch(function(){ STATE.overview={empty:true,err:true}; if(STATE.active===OVERVIEW) renderOverview(); });
@@ -627,7 +608,7 @@ function renderOverview(){
 }
 
 /* ===== 予定（ToDoスケジュール の日付タブを表示）===== */
-function openSchedule(){ commitComposer(); STATE.selected=null; STATE.editing=false; cleanupEmptyNodes(); STATE.shopping=null; STATE.active=SCHEDULE; STATE.menuId=null; STATE.scheduleDate=STATE.today; STATE.schedule=null; renderTabs(); renderSchedule(); }
+function openSchedule(){ commitEdit(false); STATE.editingId=null; cleanupEmptyNodes(); STATE.shopping=null; STATE.active=SCHEDULE; STATE.menuId=null; STATE.scheduleDate=STATE.today; STATE.schedule=null; renderTabs(); renderSchedule(); }
 function loadSchedule(){
   call('getSchedule',[STATE.scheduleDate||STATE.today]).then(function(d){ STATE.schedule=d||{empty:true}; if(STATE.active===SCHEDULE) renderSchedule(); })
     .catch(function(){ STATE.schedule={empty:true,err:true}; if(STATE.active===SCHEDULE) renderSchedule(); });
@@ -674,41 +655,36 @@ function renderSchedule(){
   v.innerHTML=html;
 }
 
-// ノードを1つ作る（テキスト必須＝空は作らない）。idを返す。描画は呼び出し側。
 function createNode(tabId,parentId,order,text){
+  commitEdit(false); // 直前に編集中だった項目を確定（空なら自動削除＝空欄を残さない）
   snap();
   var id=newId();
-  STATE.nodes.push({id:id,tab:tabId,parentId:parentId,text:text||'',order:order,done:false,collapsed:false,daily:false,today:false,note:''});
-  call('addNode',[id,tabId,parentId,order,text||'']).catch(failNote);
-  return id;
+  STATE.nodes.push({id:id,tab:tabId,parentId:parentId,text:text,order:order,done:false,collapsed:false,daily:false,today:false,note:''});
+  STATE.editingId=id;
+  renderView();
+  call('addNode',[id,tabId,parentId,order,text]).catch(failNote);
 }
 
-/* ===== 行の選択・編集（1クリック選択／2クリック編集）===== */
+// クリック＝編集 ／ ダブルクリック＝中に項目（小タブ）を追加、を区別する
 var _clk=null;
-function rowClick(id){ if(_clk){clearTimeout(_clk);_clk=null;} _clk=setTimeout(function(){_clk=null;doRowClick(id);},200); }
-function rowDbl(id){
+function rowEdit(id){ if(_clk){clearTimeout(_clk);_clk=null;} _clk=setTimeout(function(){_clk=null;startEdit(id);},200); }
+// ダブルクリックの追加：中タブ(最上位)→中に子を直下／子タブ(入れ子)→同じ並びを直下に
+function rowAddSmart(id){
   if(_clk){clearTimeout(_clk);_clk=null;}
-  if(STATE.editing && STATE.selected===id){ commitComposer(); return; } // 編集中のダブルクリック＝確定
-  beginEdit(id);                                                        // それ以外＝選択して即編集
-}
-function doRowClick(id){
-  if(STATE.editing){ var same=(STATE.selected===id); commitComposer(); if(same){ return; } } // 入力後の他クリック＝確定
-  if(STATE.selected===id && !STATE.editing){ beginEdit(id); return; }   // 2回目＝編集へ
-  selectRow(id);                                                        // 1回目＝選択
-}
-function selectRow(id){
   var n=byId(id); if(!n) return;
-  STATE.selected=id; STATE.editing=false; STATE.menuId=null;
-  STATE.cLevel=Math.min(depthOf(n),2);
-  setComposerInput(''); renderView();
+  if(!n.parentId) addChildTop(n);   // 中タブ → 子（小タブ）を直下（先頭）に
+  else addSiblingAfter(n);          // 子タブ → 同列の項目を直後に
 }
-function beginEdit(id){
-  var n=byId(id); if(!n) return;
-  STATE.selected=id; STATE.editing=true; STATE.menuId=null;
-  STATE.cLevel=Math.min(depthOf(n),2);
-  setComposerInput(n.text); renderView(); focusComposerInput();
+function addChildTop(n){
+  n.collapsed=false;
+  var kids=childrenOf(n.tab,n.id);
+  createNode(n.tab, n.id, kids.length?kids[0].order-1:0, '');
+  reflow(n.tab, n.id);
 }
-function depthOf(n){ var d=0,cur=n,g=0; while(cur&&cur.parentId&&g++<30){ cur=byId(cur.parentId); if(!cur)break; d++; } return d; }
+function addSiblingAfter(n){
+  createNode(n.tab, n.parentId, n.order+0.5, '');
+  reflow(n.tab, n.parentId);
+}
 
 /* ===== ドラッグで並べ替え（マウス＆タッチ：Pointer Events）===== */
 function isDescendant(maybeChildId, ancestorId){
@@ -718,7 +694,7 @@ function isDescendant(maybeChildId, ancestorId){
 }
 function clearDrop(){ var e=document.querySelectorAll('.drop-after'); for(var i=0;i<e.length;i++) e[i].classList.remove('drop-after'); }
 function dragStart(e, id){
-  if(STATE.editing) return;
+  if(STATE.editingId) return;
   e.preventDefault();
   var src=document.querySelector('.row[data-id="'+id+'"]'); if(src) src.classList.add('dragsrc');
   document.body.classList.add('dragging');
@@ -754,82 +730,32 @@ function dropMove(dragId, targetId){
   reflow(d.tab, d.parentId);
 }
 
-/* ===== 下部入力バー（コンポーザ）===== */
-function setComposerInput(v){ var i=document.getElementById('cmpinput'); if(i) i.value=v||''; }
-function focusComposerInput(){ setTimeout(function(){ var i=document.getElementById('cmpinput'); if(i){ i.focus(); var l=i.value.length; i.setSelectionRange(l,l); } },30); }
-function cmpKey(e){ if(e.key==='Enter'){ e.preventDefault(); composerSubmit(); } else if(e.key==='Escape'){ clearSelection(); } }
-function setCLevel(l){ STATE.cLevel=l; renderComposer(); }
-function clearSelection(){ STATE.selected=null; STATE.editing=false; setComposerInput(''); renderView(); }
-function commitComposer(){ if(STATE.editing) composerSubmit(); }
-// レベル変更：絶対の深さ(0=中タブ/1=小タブ/2=孫)に合わせて字下げ/字上げ（描画なし）
-function doIndentSilent(n){
-  var sib=siblings(n); var i=sib.indexOf(n); if(i<=0) return;
-  var prev=sib[i-1]; prev.collapsed=false;
-  n.parentId=prev.id; n.order=endOrder(n.tab,prev.id);
-  call('applyMoves',[[{id:n.id,parentId:n.parentId,order:n.order}]]).then(function(){return call('updateNode',[prev.id,'collapsed',false]);}).catch(failNote);
+function startEdit(id){ STATE.editingId=id; STATE.menuId=null; renderView(); }
+function focusEditing(){
+  if(!STATE.editingId)return;
+  var inp=document.getElementById('ed_'+STATE.editingId);if(!inp)return;
+  inp.focus();var l=inp.value.length;inp.setSelectionRange(l,l);
+  inp.onkeydown=function(e){
+    if(e.key==='Enter'){ e.preventDefault(); commitEdit(false); }
+    else if(e.key==='Escape'){ STATE.editingId=null; renderView(); }
+    else if(e.key==='Tab'){ e.preventDefault(); commitEdit(false, e.shiftKey?'out':'in'); }
+  };
+  inp.onblur=function(){ setTimeout(function(){ if(document.getElementById('ed_'+id)===inp) commitEdit(false); },120); };
 }
-function doOutdentSilent(n){
-  if(!n.parentId) return; var parent=byId(n.parentId); if(!parent) return;
-  n.parentId=parent.parentId; n.order=parent.order+0.5;
-  call('applyMoves',[[{id:n.id,parentId:n.parentId,order:n.order}]]).catch(failNote);
-  reflow(n.tab,n.parentId);
-}
-function applyLevel(n, target){
-  var g=0;
-  while(depthOf(n)<target && g++<8){ var p=n.parentId; doIndentSilent(n); if(n.parentId===p) break; }
-  g=0;
-  while(depthOf(n)>target && g++<8){ var p2=n.parentId; doOutdentSilent(n); if(n.parentId===p2) break; }
-}
-function removeNodeSilent(id){
-  var kill={};(function col(x){kill[x]=true;STATE.nodes.filter(function(c){return c.parentId===x;}).forEach(function(c){col(c.id);});})(id);
-  STATE.nodes=STATE.nodes.filter(function(x){return !kill[x.id];});
-  STATE.todayChecks=STATE.todayChecks.filter(function(t){return !kill[t];});
-  call('deleteNode',[id]).catch(failNote);
-}
-function composerSubmit(){
-  var inp=document.getElementById('cmpinput'); var text=inp?inp.value.trim():'';
-  if(STATE.editing && STATE.selected){           // ── 編集の確定 ──
-    var n=byId(STATE.selected);
-    if(!n){ clearSelection(); return; }
-    if(!text){ snap(); removeNodeSilent(n.id); STATE.selected=null; STATE.editing=false; renderView(); return; }
-    snap();
-    if(text!==n.text){ n.text=text; call('updateNode',[n.id,'text',text]).catch(failNote); }
-    applyLevel(n, STATE.cLevel);
-    STATE.editing=false; setComposerInput(''); renderView();
-    return;
+function commitEdit(makeSibling,indentDir){
+  var id=STATE.editingId;if(!id)return;var n=byId(id);if(!n)return;
+  var inp=document.getElementById('ed_'+id);if(!inp)return;
+  var t=inp.value.trim();
+  if(!t){ // 空なら行を作らない（Enter／Tab／離脱どれでも削除）。空欄が残らないように。
+    STATE.nodes=STATE.nodes.filter(function(x){return x.id!==id;});
+    STATE.editingId=null; call('deleteNode',[id]).catch(function(){}); renderView(); return;
   }
-  // ── 追加 ──
-  if(!text){ focusComposerInput(); return; }
-  var tabId=STATE.active;
-  var sel=STATE.selected?byId(STATE.selected):null;
-  var nid;
-  if(!sel){ nid=createNode(tabId,'',endOrder(tabId,''),text); }
-  else {
-    nid=createNode(tabId, sel.parentId, sel.order+0.5, text);
-    reflow(tabId, sel.parentId);
-    var nn=byId(nid); if(nn) applyLevel(nn, STATE.cLevel);
-  }
-  STATE.selected=nid; STATE.editing=false;
-  setComposerInput(''); renderView(); focusComposerInput();
-}
-function renderComposer(){
-  var c=document.getElementById('composer'); if(!c) return;
-  var inTab = !STATE.shopping && STATE.active!==DAILY && STATE.active!==OVERVIEW && STATE.active!==SCHEDULE
-    && STATE.tabs.some(function(t){return t.id===STATE.active;});
-  document.body.classList.toggle('has-composer', inTab);
-  if(!inTab){ c.style.display='none'; return; }
-  c.style.display='block';
-  var sel=STATE.selected?byId(STATE.selected):null;
-  var info=document.getElementById('cmpsel');
-  if(info){
-    if(STATE.editing && sel) info.innerHTML='✎ 編集中：'+esc(sel.text)+' <button class="cmpx" onclick="clearSelection()">×</button>';
-    else if(sel) info.innerHTML='選択中：'+esc(sel.text)+'（この下に追加）<button class="cmpx" onclick="clearSelection()">×</button>';
-    else info.innerHTML='未選択（中タブとして末尾に追加）';
-  }
-  var chips=c.querySelectorAll('.clv');
-  for(var i=0;i<chips.length;i++){ chips[i].classList.toggle('on', Number(chips[i].getAttribute('data-l'))===STATE.cLevel); }
-  var go=document.getElementById('cmpgo'); if(go) go.textContent=STATE.editing?'確定':'＋ 追加';
-  var inp=document.getElementById('cmpinput'); if(inp) inp.placeholder=STATE.editing?'内容を編集':'追加する内容を入力';
+  if(t!==n.text){ n.text=t; call('updateNode',[id,'text',t]).catch(failNote); }
+  STATE.editingId=null;
+  if(indentDir==='in'){ doIndent(n); return; }
+  if(indentDir==='out'){ doOutdent(n); return; }
+  if(makeSibling){ createNode(n.tab,n.parentId,n.order+0.5,''); reflow(n.tab,n.parentId); return; }
+  renderView();
 }
 
 function toggleDone(id){var n=byId(id);if(!n)return;snap();n.done=!n.done;renderView();call('updateNode',[id,'done',n.done]).catch(failNote);}
