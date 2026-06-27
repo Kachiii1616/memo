@@ -1085,8 +1085,8 @@ function printKids(tabId,parentId){
 function openInput(title, value, placeholder, onok){
   STATE._oninput=onok;
   document.getElementById('modalBox').innerHTML='<div class="mtitle">'+esc(title)+'</div>'+
-    '<input class="minput" id="minput" value="'+esc(value||'')+'" placeholder="'+esc(placeholder||'')+'" maxlength="40" ondblclick="okInput()">'+
-    '<div class="mdesc" style="margin:2px 0 12px">Enter／ダブルクリックで確定</div>'+
+    '<input class="minput" id="minput" value="'+esc(value||'')+'" placeholder="'+esc(placeholder||'')+'" maxlength="40">'+
+    '<div class="mdesc" style="margin:2px 0 12px">入力欄を2回タップ／Enterで確定</div>'+
     '<button class="mbtn rec" onclick="okInput()">決定</button>'+
     '<button class="mlink" onclick="closeModal()">キャンセル</button>';
   document.getElementById('modal').classList.add('open');
@@ -1094,6 +1094,8 @@ function openInput(title, value, placeholder, onok){
     var i=document.getElementById('minput'); if(!i)return;
     i.focus(); i.select();
     i.onkeydown=function(e){ if(e.key==='Enter'){e.preventDefault();okInput();} else if(e.key==='Escape'){closeModal();} };
+    var last=0;  // タッチでも効く「2回タップで確定」
+    i.onclick=function(){ var now=Date.now(); if(now-last<400){ okInput(); } last=now; };
   },40);
 }
 function okInput(){
