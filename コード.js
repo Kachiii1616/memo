@@ -218,6 +218,27 @@ function bulkSetMark(ids, kind) {
   });
 }
 
+// 【Undo用】タブ・ノードのシートを、渡された内容で丸ごと書き直す（直前の状態へ復元）。
+// 「今日のチェック」シートには触らない。
+function restoreAll(tabs, nodes) {
+  return withLock_(function () {
+    const tsh = tabSheet_(), nsh = nodeSheet_();
+    clearBody_(tsh); clearBody_(nsh);
+    if (tabs && tabs.length) {
+      const trows = tabs.map(function (t) { return [t.id, t.name, t.type || 'normal', Number(t.order) || 0]; });
+      tsh.getRange(2, 1, trows.length, 4).setValues(trows);
+    }
+    if (nodes && nodes.length) {
+      const nrows = nodes.map(function (n) {
+        return [n.id, n.tab, n.parentId || '', n.text || '', Number(n.order) || 0,
+          !!n.done, !!n.collapsed, !!n.daily, n.note || '', !!n.today];
+      });
+      nsh.getRange(2, 1, nrows.length, 10).setValues(nrows);
+    }
+    return { ok: true };
+  });
+}
+
 // 「今日のチェック」その日付の達成チェックを付け外し
 function setDailyCheck(id, dateStr, done) {
   const date = dateStr || todayStr_();
