@@ -279,6 +279,7 @@
     <button class="clv" data-l="0" onclick="setCLevel(0)">中タブ</button>
     <button class="clv" data-l="1" onclick="setCLevel(1)">小タブ</button>
     <button class="clv" data-l="2" onclick="setCLevel(2)">孫</button>
+    <button class="clv" data-l="3" onclick="setCLevel(3)">孫の孫</button>
     <button class="cmpundo" onclick="undo()" title="元に戻す">↶ 戻る</button>
     <button id="cmpgo" class="cmpgo" onclick="composerSubmit()">＋ 追加</button>
   </div>
@@ -441,7 +442,7 @@ function renderTab(tabId){
   html+='<div class="tree" ondblclick="if(event.target===this)addRoot(\''+jsq(tabId)+'\')">'+renderKids(tabId,'',0)+'</div>';
   if(!all.length) html+='<div class="empty" ondblclick="addRoot(\''+jsq(tabId)+'\')">からっぽです<span class="sw">ここをダブルクリックで追加</span></div>';
   html+='<div class="addline"><button onclick="addRoot(\''+jsq(tabId)+'\')">＋ 中タブを追加</button></div>';
-  html+='<div class="hint">行を<b>1タップ＝選択</b>／<b>もう1タップ＝編集</b>。入力・期限・追加・レベル(中/小/孫)は<b>下のバー</b>でまとめて操作。<br><b>⠿ドラッグ</b>：左寄せ＝同じ並び／<b>右寄せ＝その項目の中へ</b> ・ 右のマークで '+markIcon('daily',true)+'<b style="color:var(--gold)">定期</b>／'+markIcon('today',true)+'<b style="color:var(--rose)">その日</b> ・ … で移動/削除</div>';
+  html+='<div class="hint">行を<b>1タップ＝選択</b>／<b>もう1タップ＝編集</b>。入力・期限・追加・レベル(中/小/孫/孫の孫)は<b>下のバー</b>でまとめて操作。<br><b>⠿ドラッグ</b>：左寄せ＝同じ並び／<b>右寄せ＝その項目の中へ</b> ・ 右のマークで '+markIcon('daily',true)+'<b style="color:var(--gold)">定期</b>／'+markIcon('today',true)+'<b style="color:var(--rose)">その日</b> ・ … で移動/削除</div>';
   html+='</div>';
   v.innerHTML=html;
 }
@@ -713,13 +714,13 @@ function doRowClick(id){
 function selectRow(id){
   var n=byId(id); if(!n) return;
   STATE.selected=id; STATE.editing=false; STATE.menuId=null;
-  STATE.cLevel=Math.min(depthOf(n),2);
+  STATE.cLevel=Math.min(depthOf(n),3);
   setComposerInput(''); setComposerDeadline(''); renderView();
 }
 function beginEdit(id){
   var n=byId(id); if(!n) return;
   STATE.selected=id; STATE.editing=true; STATE.menuId=null;
-  STATE.cLevel=Math.min(depthOf(n),2);
+  STATE.cLevel=Math.min(depthOf(n),3);
   setComposerInput(n.text); setComposerDeadline(n.note); renderView(); focusComposerInput();
 }
 function depthOf(n){ var d=0,cur=n,g=0; while(cur&&cur.parentId&&g++<30){ cur=byId(cur.parentId); if(!cur)break; d++; } return d; }
