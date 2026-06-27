@@ -245,6 +245,7 @@ function boot(){
   call('getData',[null]).then(function(d){
     STATE.today=d.today;STATE.tabs=d.tabs||[];STATE.nodes=d.nodes||[];STATE.todayChecks=d.todayChecks||[];
     STATE.active=(STATE.tabs[0]&&STATE.tabs[0].id)||DAILY;
+    cleanupEmptyNodes(); // 以前の取り残し（空欄項目）を起動時に掃除
     renderToday();renderTabs();renderView();
   }).catch(function(e){document.getElementById('view').innerHTML='<div class="loading">読み込みに失敗しました。<br>'+esc(e.message||e)+'</div>';});
 }
@@ -264,7 +265,7 @@ function renderTabs(){
   dt.className='tab daily'+(STATE.active===DAILY?' active':'');
   dt.style.setProperty('--tabc','#c2a9b4');
   dt.innerHTML='<span class="no">✦</span>今日のチェック';
-  dt.onclick=function(){STATE.active=DAILY;renderTabs();renderView();};
+  dt.onclick=function(){switchTab(DAILY);};
   bar.appendChild(dt);
   // 改行（以降の大タブは次の行から）
   var brk=document.createElement('span');brk.className='brk';bar.appendChild(brk);
@@ -277,7 +278,7 @@ function renderTabs(){
     b.className='tab'+(STATE.active===t.id?' active':'');
     b.style.setProperty('--tabc',tabColor(i));
     b.innerHTML='<span class="no">'+pad2(i+1)+'</span>'+esc(t.name);
-    b.onclick=function(){ if(STATE.editTabs){editTabName(t);} else {STATE.active=t.id;renderTabs();renderView();} };
+    b.onclick=function(){ if(STATE.editTabs){editTabName(t);} else {switchTab(t.id);} };
     chip.appendChild(b);
     if(STATE.editTabs){
       chip.appendChild(mvBtn('▶',function(){moveTab(i,1);}));
@@ -418,7 +419,25 @@ function addRoot(tabId){ createNode(tabId,'',endOrder(tabId,''),''); }
 function addChild(id){ var n=byId(id);if(!n)return; n.collapsed=false; createNode(n.tab,n.id,endOrder(n.tab,n.id),''); }
 function endOrder(tabId,parentId){ var s=childrenOf(tabId,parentId);return s.length?s[s.length-1].order+1:0; }
 
+// 取り残された空欄項目を一掃（編集中のものは除く）。サーバ側からも消す。
+function cleanupEmptyNodes(){
+  var dead=STATE.nodes.filter(function(n){ return !n.text && n.id!==STATE.editingId; });
+  if(!dead.length) return;
+  var ids={}; dead.forEach(function(n){ ids[n.id]=true; });
+  STATE.nodes=STATE.nodes.filter(function(n){ return !ids[n.id]; });
+  STATE.todayChecks=STATE.todayChecks.filter(function(t){ return !ids[t]; });
+  dead.forEach(function(n){ call('deleteNode',[n.id]).catch(function(){}); });
+}
+// タブ切替時：編集中なら確定（空なら削除）し、空欄を一掃してから切替
+function switchTab(id){
+  commitEdit(false);
+  STATE.editingId=null;
+  cleanupEmptyNodes();
+  STATE.active=id; renderTabs(); renderView();
+}
+
 function createNode(tabId,parentId,order,text){
+  commitEdit(false); // 直前に編集中だった項目を確定（空なら自動削除＝空欄を残さない）
   var id=newId();
   STATE.nodes.push({id:id,tab:tabId,parentId:parentId,text:text,order:order,done:false,collapsed:false,daily:false,today:false,note:''});
   STATE.editingId=id;
