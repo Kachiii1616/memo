@@ -93,6 +93,45 @@ function getOverview() {
   return { rows: rows, sheet: sh.getName() };
 }
 
+// ===== 1日のスケジュール（専用スプレッドシート「ToDoスケジュール」の日付タブ）=====
+// Cowork が日付名(yyyy-MM-dd)のシートに書き込み、アプリはそれを読んで表示する。
+function getScheduleSS_() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('SCHEDULE_SS_ID');
+  if (id) { try { return SpreadsheetApp.openById(id); } catch (e) { /* 消えていたら作り直す */ } }
+  try {
+    const it = DriveApp.getFilesByName('ToDoスケジュール');
+    if (it.hasNext()) { const f = it.next(); props.setProperty('SCHEDULE_SS_ID', f.getId()); return SpreadsheetApp.openById(f.getId()); }
+  } catch (e) { /* Drive検索不可ならそのまま作成 */ }
+  const ss = SpreadsheetApp.create('ToDoスケジュール');
+  props.setProperty('SCHEDULE_SS_ID', ss.getId());
+  return ss;
+}
+function scheduleDates_(ss) {
+  return ss.getSheets().map(function (s) { return s.getName(); })
+    .filter(function (n) { return /^\d{4}-\d{2}-\d{2}$/.test(n); })
+    .sort().reverse();
+}
+// dateStr 省略時は今日。戻り値 {rows?, date, dates[], url, empty?}
+function getSchedule(dateStr) {
+  const date = dateStr || todayStr_();
+  const ss = getScheduleSS_();
+  const dates = scheduleDates_(ss);
+  const sh = ss.getSheetByName(date);
+  const base = { date: date, dates: dates, url: ss.getUrl(), name: ss.getName() };
+  if (!sh) return Object.assign({ empty: true }, base);
+  const last = sh.getLastRow(), lastc = sh.getLastColumn();
+  if (last < 1 || lastc < 1) return Object.assign({ empty: true }, base);
+  const rows = sh.getRange(1, 1, last, lastc).getValues()
+    .map(function (r) { return r.map(function (c) { return (c === null || c === undefined) ? '' : String(c); }); });
+  return Object.assign({ rows: rows }, base);
+}
+// 保存先スプレッドシートのURL/名前だけ取得（案内表示用）
+function getScheduleInfo() {
+  const ss = getScheduleSS_();
+  return { url: ss.getUrl(), name: ss.getName() };
+}
+
 // ===== タブ操作 =============================================================
 // 新タブ作成（idはクライアント生成）。種類に応じてひな形ノードも作る。
 function addTab(id, name, type) {

@@ -110,6 +110,7 @@
   .ovtext{padding:4px 2px}
   .ovtext p{margin:4px 0;line-height:1.7;font-size:14px}
   .ovtext .ovsp{height:8px}
+  .datebar{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 6px}
   .bulkbar button{border:1px solid var(--line);background:var(--paper2);cursor:pointer;color:var(--sub);
     font-size:12px;padding:4px 10px;border-radius:8px;line-height:1.2}
   .bulkbar button:hover{border-color:var(--accent);color:var(--ink)}
@@ -247,6 +248,7 @@ var STATE={today:'',tabs:[],nodes:[],todayChecks:[],active:null,editTabs:false,e
 var TAB_COLORS=['#b89a8c','#9bb0b8','#c2a9b4','#a9b29a','#c9b489','#a8a59c'];
 var DAILY='__daily__';
 var OVERVIEW='__overview__';
+var SCHEDULE='__schedule__';
 
 /* ===== サーバ呼び出し（無い場合はMOCKへ） ===== */
 function call(fn,args){
@@ -293,6 +295,13 @@ function renderTabs(){
   ov.innerHTML='<span class="no">📋</span>概要';
   ov.onclick=function(){openOverview();};
   bar.appendChild(ov);
+  // 予定（Cowork等が作った1日のスケジュールを表示）
+  var sc=document.createElement('button');
+  sc.className='tab daily'+(STATE.active===SCHEDULE?' active':'');
+  sc.style.setProperty('--tabc','#c9b489');
+  sc.innerHTML='<span class="no">📅</span>予定';
+  sc.onclick=function(){openSchedule();};
+  bar.appendChild(sc);
   // 改行（以降の大タブは次の行から）
   var brk=document.createElement('span');brk.className='brk';bar.appendChild(brk);
   STATE.tabs.forEach(function(t,i){
@@ -359,7 +368,7 @@ function moveTab(i,dir){
 }
 
 /* ===== ビュー ===== */
-function renderView(){ if(STATE.shopping)renderShop(STATE.shopping); else if(STATE.active===OVERVIEW)renderOverview(); else if(STATE.active===DAILY)renderDaily(); else renderTab(STATE.active); }
+function renderView(){ if(STATE.shopping)renderShop(STATE.shopping); else if(STATE.active===SCHEDULE)renderSchedule(); else if(STATE.active===OVERVIEW)renderOverview(); else if(STATE.active===DAILY)renderDaily(); else renderTab(STATE.active); }
 
 function childrenOf(tabId,parentId){
   return STATE.nodes.filter(function(n){return n.tab===tabId&&n.parentId===parentId;})
@@ -594,6 +603,44 @@ function renderOverview(){
     }
   }
   html+='<div class="hint">Cowork等が「ToDoOverview」シートに書いた内容を表示しています（読み取り専用）。↻更新で最新に。</div>';
+  html+='</div>';
+  v.innerHTML=html;
+}
+
+/* ===== 予定（ToDoスケジュール の日付タブを表示）===== */
+function openSchedule(){ commitEdit(false); STATE.editingId=null; cleanupEmptyNodes(); STATE.shopping=null; STATE.active=SCHEDULE; STATE.menuId=null; STATE.scheduleDate=STATE.today; STATE.schedule=null; renderTabs(); renderSchedule(); }
+function loadSchedule(){
+  call('getSchedule',[STATE.scheduleDate||STATE.today]).then(function(d){ STATE.schedule=d||{empty:true}; if(STATE.active===SCHEDULE) renderSchedule(); })
+    .catch(function(){ STATE.schedule={empty:true,err:true}; if(STATE.active===SCHEDULE) renderSchedule(); });
+}
+function pickScheduleDate(date){ STATE.scheduleDate=date; STATE.schedule=null; renderSchedule(); }
+function renderSchedule(){
+  var v=document.getElementById('view'), d=STATE.schedule;
+  if(!d){ v.innerHTML='<div class="loading">よみこみ中…</div>'; loadSchedule(); return; }
+  var date=d.date||STATE.scheduleDate||STATE.today;
+  var html='<div class="card"><div class="card-head"><div class="card-title">📅 予定<span class="en">'+esc(date)+'</span></div>'+
+    '<button class="tbtn" onclick="STATE.schedule=null;renderSchedule();">↻ 更新</button></div>';
+  var dates=d.dates||[];
+  if(dates.length){
+    html+='<div class="datebar">';
+    dates.forEach(function(dt){ html+='<button class="chip'+(dt===date?' on':'')+'" onclick="pickScheduleDate(\''+jsq(dt)+'\')">'+esc(dt.slice(5))+'</button>'; });
+    html+='</div>';
+  }
+  if(d.empty){
+    html+='<div class="empty">'+esc(date)+' の予定はまだありません'+
+      '<span class="sw">Coworkに「今日の予定を作って『ToDoスケジュール』の '+esc(date)+' タブに書いて」と頼んでください</span></div>';
+    if(d.url) html+='<div class="hint">保存先：<a href="'+esc(d.url)+'" target="_blank" rel="noopener">ToDoスケジュール を開く</a></div>';
+  }else{
+    var rows=d.rows||[], maxc=0; rows.forEach(function(r){ if(r.length>maxc) maxc=r.length; });
+    if(maxc<=1){
+      html+='<div class="ovtext">'; rows.forEach(function(r){ var t=(r[0]||'').trim(); html+= t?'<p>'+linkify(t)+'</p>':'<div class="ovsp"></div>'; }); html+='</div>';
+    }else{
+      html+='<div class="ovwrap"><table class="ovtable">';
+      rows.forEach(function(r,ri){ html+='<tr>'; for(var c=0;c<maxc;c++){ var cell=r[c]||''; html+= ri===0?'<th>'+esc(cell)+'</th>':'<td>'+linkify(cell)+'</td>'; } html+='</tr>'; });
+      html+='</table></div>';
+    }
+    html+='<div class="hint">Coworkが「ToDoスケジュール」の日付タブに書いた予定です（読み取り専用）。↻更新で最新に。</div>';
+  }
   html+='</div>';
   v.innerHTML=html;
 }
