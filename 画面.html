@@ -473,8 +473,20 @@ function switchTab(id){
 }
 
 /* ===== 買い物リスト（定期購入向け：◆店ごと）===== */
-function openShop(tabId){ commitEdit(false); STATE.editingId=null; cleanupEmptyNodes(); STATE.shopping=tabId; STATE.menuId=null; renderView(); }
+function openShop(tabId){ commitEdit(false); STATE.editingId=null; cleanupEmptyNodes(); STATE.shopping=tabId; STATE.menuId=null; renderView(); syncShop(tabId); }
 function closeShop(){ STATE.shopping=null; renderView(); }
+// 買い物リストをスプレッドシート「買い物リスト」へ書き出し（Cowork等が読める形）
+var _shopSyncT=null;
+function syncShop(tabId){ // 変更を少し待ってから自動で書き出し（連打をまとめる）
+  clearTimeout(_shopSyncT);
+  _shopSyncT=setTimeout(function(){ call('exportShoppingList',[tabId]).catch(function(){}); },600);
+}
+function exportShop(tabId){ // 手動で今すぐ書き出し
+  toast('書き出し中…');
+  call('exportShoppingList',[tabId]).then(function(r){
+    toast('スプレッドシートに書き出しました（'+r.count+'件）');
+  }).catch(failNote);
+}
 function shopGroups(tabId){
   var groups=[];
   childrenOf(tabId,'').forEach(function(cat){          // 各 ◆店
@@ -498,6 +510,7 @@ function renderShop(tabId){
   html+='<div class="card-head"><div class="card-title">🛒 買い物リスト<span class="en">'+esc(t?t.name:'')+'</span></div>'+
     '<div class="count">'+bought+' / '+total+'</div></div>';
   html+='<div class="shopbar"><button class="tbtn" onclick="closeShop()">← 戻る</button>'+
+    '<button class="tbtn" onclick="exportShop(\''+jsq(tabId)+'\')">📤 書き出す</button>'+
     (bought?'<button class="tbtn" onclick="clearBought(\''+jsq(tabId)+'\')">買ったものを片付ける（'+bought+'）</button>':'')+'</div>';
   if(!total){
     html+='<div class="empty">買うものが選ばれていません<span class="sw">定期購入で '+markIcon('today',true)+' を付けてください</span></div>';
@@ -518,6 +531,7 @@ function renderShop(tabId){
 }
 function toggleBought(id){ var n=byId(id);if(!n)return; snap(); n.done=!n.done; renderView();
   call('updateNode',[id,'done',n.done]).catch(failNote);
+  syncShop(n.tab);
   var items=STATE.nodes.filter(function(x){return x.tab===n.tab&&x.today&&!hasKids(x);});
   if(items.length&&items.every(function(x){return x.done;})) toast('ぜんぶ買えました ✦');
 }
@@ -528,6 +542,7 @@ function clearBought(tabId){
   bought.forEach(function(n){ n.today=false; n.done=false; });
   renderView();
   bought.forEach(function(n){ call('updateNode',[n.id,'today',false]).catch(failNote); call('updateNode',[n.id,'done',false]).catch(failNote); });
+  syncShop(tabId);
   toast(bought.length+'件を片付けました');
 }
 

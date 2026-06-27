@@ -330,6 +330,46 @@ function collectExport_(scope, tabId) {
   return { tabs: out, stamp: todayStr_() };
 }
 
+// ===== 買い物リスト → スプレッドシート（Cowork等が読める形）==================
+// 指定タブ（定期購入）の ❀（その日）を付けた品物を、◆店ごとに「買い物リスト」シートへ
+// 書き出す。列＝店 / 品名 / 状態（買う・買った）。毎回まるごと書き直す（現在の状態）。
+function exportShoppingList(tabId) {
+  return withLock_(function () {
+    const nodes = readNodes_();
+    const kids = {};
+    nodes.forEach(function (n) { if (n.parentId) kids[n.parentId] = true; });
+    const byParent = {};
+    nodes.forEach(function (n) {
+      if (n.tab !== String(tabId)) return;
+      const k = n.parentId || '';
+      (byParent[k] = byParent[k] || []).push(n);
+    });
+    Object.keys(byParent).forEach(function (k) { byParent[k].sort(function (a, b) { return a.order - b.order; }); });
+    const rows = [];
+    (byParent[''] || []).forEach(function (cat) {        // 各 ◆店
+      (function walk(pid) {
+        (byParent[pid] || []).forEach(function (n) {
+          if (kids[n.id]) walk(n.id);
+          else if (n.today) rows.push([cat.text, n.text, n.done ? '買った' : '買う']);
+        });
+      })(cat.id);
+      if (!kids[cat.id] && cat.today) rows.push([cat.text, cat.text, cat.done ? '買った' : '買う']);
+    });
+    const ss = getSS_();
+    let sh = ss.getSheetByName('買い物リスト');
+    if (!sh) sh = ss.insertSheet('買い物リスト');
+    sh.clear();
+    sh.getRange(1, 1, 1, 4).setValues([['店', '品名', '状態', '更新: ' + nowStr_()]]).setFontWeight('bold').setBackground('#efece6');
+    sh.setFrozenRows(1);
+    if (rows.length) sh.getRange(2, 1, rows.length, 3).setValues(rows);
+    sh.autoResizeColumns(1, 3);
+    return { ok: true, count: rows.length, url: ss.getUrl() };
+  });
+}
+function nowStr_() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Tokyo', 'yyyy-MM-dd HH:mm');
+}
+
 // ===== 読み込み =============================================================
 function readTabs_() {
   const sh = tabSheet_();
