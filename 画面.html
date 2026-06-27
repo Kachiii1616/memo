@@ -614,12 +614,22 @@ function loadSchedule(){
     .catch(function(){ STATE.schedule={empty:true,err:true}; if(STATE.active===SCHEDULE) renderSchedule(); });
 }
 function pickScheduleDate(date){ STATE.scheduleDate=date; STATE.schedule=null; renderSchedule(); }
+function makeSchedule(){
+  toast('予定を作成中…');
+  call('generateSchedule',[{date:STATE.today}]).then(function(d){
+    STATE.schedule=d; STATE.scheduleDate=(d&&d.date)||STATE.today;
+    if(STATE.active===SCHEDULE) renderSchedule();
+    toast('今日の予定を立てました');
+  }).catch(failNote);
+}
 function renderSchedule(){
   var v=document.getElementById('view'), d=STATE.schedule;
   if(!d){ v.innerHTML='<div class="loading">よみこみ中…</div>'; loadSchedule(); return; }
   var date=d.date||STATE.scheduleDate||STATE.today;
   var html='<div class="card"><div class="card-head"><div class="card-title">📅 予定<span class="en">'+esc(date)+'</span></div>'+
     '<button class="tbtn" onclick="STATE.schedule=null;renderSchedule();">↻ 更新</button></div>';
+  html+='<div class="shoprow"><button class="shopopen" onclick="makeSchedule()">✨ 今日の予定を立てる</button>'+
+    '<span class="shophint">❀を付けた今日のタスクを、方針の優先順位で時間割にします</span></div>';
   var dates=d.dates||[];
   if(dates.length){
     html+='<div class="datebar">';
@@ -628,7 +638,7 @@ function renderSchedule(){
   }
   if(d.empty){
     html+='<div class="empty">'+esc(date)+' の予定はまだありません'+
-      '<span class="sw">Coworkに「今日の予定を作って『ToDoスケジュール』の '+esc(date)+' タブに書いて」と頼んでください</span></div>';
+      '<span class="sw">上の「✨ 今日の予定を立てる」を押すと、自動で作成します</span></div>';
     if(d.url) html+='<div class="hint">保存先：<a href="'+esc(d.url)+'" target="_blank" rel="noopener">ToDoスケジュール を開く</a></div>';
   }else{
     var rows=d.rows||[], maxc=0; rows.forEach(function(r){ if(r.length>maxc) maxc=r.length; });
@@ -639,7 +649,7 @@ function renderSchedule(){
       rows.forEach(function(r,ri){ html+='<tr>'; for(var c=0;c<maxc;c++){ var cell=r[c]||''; html+= ri===0?'<th>'+esc(cell)+'</th>':'<td>'+linkify(cell)+'</td>'; } html+='</tr>'; });
       html+='</table></div>';
     }
-    html+='<div class="hint">Coworkが「ToDoスケジュール」の日付タブに書いた予定です（読み取り専用）。↻更新で最新に。</div>';
+    html+='<div class="hint">アプリが方針の優先順位で立てた予定です。「✨今日の予定を立てる」でやり直し ／ ↻更新で再読込。「ToDoスケジュール」スプレッドシートにも保存されます。</div>';
   }
   html+='</div>';
   v.innerHTML=html;

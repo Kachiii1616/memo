@@ -132,6 +132,65 @@ function getScheduleInfo() {
   return { url: ss.getUrl(), name: ss.getName() };
 }
 
+// 【アプリ内で生成】❀/★を付けた今日のタスクを、方針の優先順位ルールで時間割にして
+// 「ToDoスケジュール」の日付タブへ書き込む（同日は上書き）。APIキー不要のルールベース。
+// 並び：家事 → 連絡 → 期限あり → 生活の買い出し → エリア順(生活→ファイナンス→活動→…)。お仕事は別枠で末尾。
+function generateSchedule(opts) {
+  return withLock_(function () {
+    opts = opts || {};
+    const date = opts.date || todayStr_();
+    const slot = Number(opts.slot) || 45;
+    const nodes = readNodes_();
+    const tabs = readTabs_();
+    const tabName = {}; tabs.forEach(function (t) { tabName[t.id] = t.name; });
+    const byId = {}; nodes.forEach(function (n) { byId[n.id] = n; });
+    const hasKids = {}; nodes.forEach(function (n) { if (n.parentId) hasKids[n.parentId] = true; });
+
+    const tasks = nodes.filter(function (n) { return (n.today || n.daily) && !hasKids[n.id]; });
+    function ancestry(n) { const a = []; let cur = n, g = 0; while (cur && cur.parentId && g++ < 20) { const p = byId[cur.parentId]; if (!p) break; a.unshift(p.text); cur = p; } return a; }
+    function isKaji(n) { return ancestry(n).some(function (t) { return /家$|家事/.test(t); }) || /洗濯|掃除|片付|キッチン|お風呂|洗面|トイレ|掃除機|ゴミ/.test(n.text); }
+    function isRenraku(n) { return ancestry(n).some(function (t) { return /連絡/.test(t); }); }
+    function hasDeadline(n) { return /(\d{1,2}\s*[\/月]\s*\d{1,2})|(\d{1,2}\s*日)|(期限|締切|〆|予約)/.test(n.text); }
+    function isKaimono(n) { const tn = tabName[n.tab] || ''; if (/定期購入/.test(tn)) return true; return ancestry(n).some(function (t) { return /購入|買/.test(t); }); }
+    function areaRank(n) { const tn = tabName[n.tab] || ''; if (/お仕事/.test(tn)) return 90; if (/生活|定期購入/.test(tn)) return 1; if (/ファイナンス/.test(tn)) return 2; if (/音楽|カメラ/.test(tn)) return 3; return 5; }
+    function rank(n) {
+      if (isKaji(n)) return 0;
+      if (isRenraku(n)) return 1;
+      if (hasDeadline(n)) return 2;
+      if (isKaimono(n)) return 3;
+      return 10 + areaRank(n);
+    }
+    tasks.sort(function (a, b) { const ra = rank(a), rb = rank(b); if (ra !== rb) return ra - rb; return (a.order || 0) - (b.order || 0); });
+
+    const now = new Date();
+    let mins = now.getHours() * 60 + now.getMinutes();
+    mins = Math.ceil(mins / 30) * 30; // 次の30分に丸め
+    const rows = [['時間', '予定', 'メモ']];
+    tasks.forEach(function (n) {
+      if (mins >= 22 * 60) return; // 22時以降は入れない
+      const hh = Math.floor(mins / 60), mm = mins % 60;
+      const time = (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+      const tags = [tabName[n.tab] || ''];
+      if (isKaji(n)) tags.push('家事'); else if (isRenraku(n)) tags.push('連絡'); else if (hasDeadline(n)) tags.push('期限'); else if (isKaimono(n)) tags.push('買い物');
+      rows.push([time, n.text, tags.filter(Boolean).join(' / ')]);
+      mins += slot;
+      if (mins > 12 * 60 && mins < 13 * 60) mins = 13 * 60; // 昼休みをまたぐなら13:00へ
+    });
+    if (rows.length === 1) rows.push(['—', '今日の ❀／★ 項目がありません', 'まず項目に ❀ を付けてください']);
+
+    const ss = getScheduleSS_();
+    let sh = ss.getSheetByName(date);
+    if (sh) sh.clear(); else sh = ss.insertSheet(date);
+    sh.getRange(1, 1, rows.length, 3).setValues(rows);
+    sh.getRange(1, 1, 1, 3).setFontWeight('bold').setBackground('#efece6');
+    sh.setFrozenRows(1);
+    sh.autoResizeColumns(1, 3);
+    const def = ss.getSheetByName('シート1') || ss.getSheetByName('Sheet1');
+    if (def && ss.getSheets().length > 1) { try { ss.deleteSheet(def); } catch (e) {} }
+    return getSchedule(date);
+  });
+}
+
 // ===== タブ操作 =============================================================
 // 新タブ作成（idはクライアント生成）。種類に応じてひな形ノードも作る。
 function addTab(id, name, type) {
