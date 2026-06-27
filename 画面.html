@@ -91,6 +91,8 @@
   .mk2.on{transform:scale(1.1)}
   .menu{flex:none;border:none;background:transparent;cursor:pointer;color:var(--sub);font-size:15px;padding:2px 4px;margin-top:1px;border-radius:6px;line-height:1}
   .menu:hover,.menu.on{background:#e7e1d7;color:var(--ink)}
+  .del{flex:none;border:none;background:transparent;cursor:pointer;color:var(--line);font-size:13px;padding:2px 5px;margin-top:1px;border-radius:6px;line-height:1}
+  .del:hover{background:#f3dede;color:#c0392b}
   /* タブ一括選択バー */
   .bulkbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 2px 0;font-size:12px;color:var(--sub)}
   .bulkbar .bl{letter-spacing:.04em}
@@ -469,6 +471,7 @@ function nodeRow(n,depth){
   if(n.note) h+='<span class="dl" title="期限">〆'+esc(n.note)+'</span>';
   h+='<button class="mk2 daily'+(n.daily?' on':'')+'" title="定期（毎日くりかえし）／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'daily\')">'+markIcon('daily',n.daily)+'</button>';
   h+='<button class="mk2 today'+(n.today?' on':'')+'" title="その日にすること／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'today\')">'+markIcon('today',n.today)+'</button>';
+  h+='<button class="del" title="削除" onclick="removeNode(\''+jsq(n.id)+'\')">✕</button>';
   h+='<button class="menu'+(STATE.menuId===n.id?' on':'')+'" title="操作" onclick="toggleMenu(\''+jsq(n.id)+'\')">⋯</button>';
   h+='</div>';
   if(STATE.menuId===n.id){
@@ -480,7 +483,6 @@ function nodeRow(n,depth){
     }
     tb+='<button onclick="moveNode(\''+jsq(n.id)+'\',-1)">↑ 上へ</button>'+
        '<button onclick="moveNode(\''+jsq(n.id)+'\',1)">↓ 下へ</button>'+
-       '<button onclick="removeNode(\''+jsq(n.id)+'\')">✕ 削除</button>'+
        '</div>';
     h+=tb;
   }
