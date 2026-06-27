@@ -715,11 +715,9 @@ function renderSchedule(){
     if(!time && !title && !memo) continue;
     blocks.push({i:i, sheetRow:i+1, time:time, title:title, memo:memo, done:schDone(r)});
   }
-  // 今日マークしたタスク（★❀）＝memo由来
+  // 今日マークしたタスク（★❀）＝memo由来。※進捗%は「今日の予定」ブロックのみで計算
   var flagged=STATE.nodes.filter(isFlagged);
-  var totalB=blocks.length, doneB=blocks.filter(function(b){return b.done;}).length;
-  var totalF=flagged.length, doneF=flagged.filter(dailyDone).length;
-  var total=totalB+totalF, doneN=doneB+doneF;
+  var total=blocks.length, doneN=blocks.filter(function(b){return b.done;}).length;
   var pct=total?Math.round(doneN/total*100):0;
   var msg=total===0?'予定がまだありません':(doneN===total?'すべて完了！おつかれさまでした':'あと '+(total-doneN)+' 件');
 
