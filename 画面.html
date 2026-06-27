@@ -115,15 +115,20 @@
   .datebar{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 6px}
   /* 予定タイムライン */
   .schlist{margin:8px 0 2px}
-  .schitem{display:flex;gap:14px;padding:11px 2px;border-top:1px solid #ece6da}
+  .schitem{display:flex;gap:10px;padding:11px 2px;border-top:1px solid #ece6da}
   .schitem:first-child{border-top:none}
-  .schtime{flex:none;width:104px;font-size:13px;color:#6f675e;padding-top:3px;letter-spacing:.02em;white-space:nowrap}
+  .schitem .check{flex:none;margin-top:1px}
+  .schtime{flex:none;width:96px;font-size:13px;color:#6f675e;padding-top:3px;letter-spacing:.02em;white-space:nowrap}
   .schbody{flex:1;min-width:0}
   .schtitle{font-family:'Shippori Mincho',serif;font-size:15px;color:var(--ink);font-weight:600}
   .schmemo{font-size:12.5px;color:var(--sub);line-height:1.65;margin-top:3px;word-break:break-word}
   .schtag{font-size:10.5px;color:#b3a999;margin-left:8px;font-weight:400}
   .schitem.next{opacity:.5}
   .schitem.sleep{border-top:1.5px solid #cbbfae;margin-top:6px;padding-top:13px}
+  .schitem.done .schtime{color:#bcb3a6}
+  .schitem.done .schtitle{text-decoration:line-through;color:#b3a999;font-weight:500}
+  .schitem.done .schmemo{text-decoration:line-through;opacity:.55}
+  .schsub{font-family:'Shippori Mincho',serif;font-size:14px;color:#8a7f72;margin:20px 0 4px;padding-top:14px;border-top:1px dashed #e3dccf}
   .schtitle a,.schmemo a{color:var(--accent)}
   /* 選択ハイライト */
   .row.sel{background:#efe7db;box-shadow:inset 0 0 0 1.5px var(--accent);border-radius:9px}
@@ -327,7 +332,7 @@ function call(fn,args){
 function boot(){
   call('getData',[null]).then(function(d){
     STATE.today=d.today;STATE.tabs=d.tabs||[];STATE.nodes=d.nodes||[];STATE.todayChecks=d.todayChecks||[];
-    STATE.active=(STATE.tabs[0]&&STATE.tabs[0].id)||DAILY;
+    STATE.scheduleDate=d.today;STATE.active=SCHEDULE;
     cleanupEmptyNodes(); // 以前の取り残し（空欄項目）を起動時に掃除
     renderToday();renderTabs();renderView();
   }).catch(function(e){document.getElementById('view').innerHTML='<div class="loading">読み込みに失敗しました。<br>'+esc(e.message||e)+'</div>';});
@@ -343,25 +348,11 @@ function tabColor(i){return TAB_COLORS[i%TAB_COLORS.length];}
 function tabName(id){var t=STATE.tabs.filter(function(x){return x.id===id;})[0];return t?t.name:'';}
 function renderTabs(){
   var bar=document.getElementById('tabbar');bar.innerHTML='';
-  // 今日のチェックを先頭に置く
-  var dt=document.createElement('button');
-  dt.className='tab daily'+(STATE.active===DAILY?' active':'');
-  dt.style.setProperty('--tabc','#c2a9b4');
-  dt.innerHTML='<span class="no">✦</span>今日のチェック';
-  dt.onclick=function(){switchTab(DAILY);};
-  bar.appendChild(dt);
-  // 概要（Cowork等が書き出した ToDoOverview を表示）
-  var ov=document.createElement('button');
-  ov.className='tab daily'+(STATE.active===OVERVIEW?' active':'');
-  ov.style.setProperty('--tabc','#9bb0b8');
-  ov.innerHTML='<span class="no">📋</span>概要';
-  ov.onclick=function(){openOverview();};
-  bar.appendChild(ov);
-  // 予定（Cowork等が作った1日のスケジュールを表示）
+  // 予定（今日のハブ：スケジュール＋今日マークしたタスクを統合表示）を先頭に
   var sc=document.createElement('button');
   sc.className='tab daily'+(STATE.active===SCHEDULE?' active':'');
   sc.style.setProperty('--tabc','#c9b489');
-  sc.innerHTML='<span class="no">📅</span>予定';
+  sc.innerHTML='<span class="no">📅</span>今日の予定';
   sc.onclick=function(){openSchedule();};
   bar.appendChild(sc);
   // 改行（以降の大タブは次の行から）
@@ -715,8 +706,27 @@ function renderSchedule(){
   var date=d.date||STATE.scheduleDate||STATE.today;
   var nowStr='';
   if(date===STATE.today){ var nd=new Date(); nowStr='　現在 '+(nd.getHours()<10?'0':'')+nd.getHours()+':'+(nd.getMinutes()<10?'0':'')+nd.getMinutes(); }
-  var html='<div class="card"><div class="card-head"><div class="card-title">📅 予定<span class="en">'+esc(date)+esc(nowStr)+'</span></div>'+
+  // 予定ブロックを取り出す
+  var rows=d.rows||[], start=0;
+  if(rows.length && (/時間|時刻/.test(rows[0][0]||'') || /予定/.test(rows[0][1]||''))) start=1;
+  var blocks=[];
+  for(var i=start;i<rows.length;i++){
+    var r=rows[i]||[]; var time=(r[0]||'').trim(), title=(r[1]||'').trim(), memo=(r[2]||'').trim();
+    if(!time && !title && !memo) continue;
+    blocks.push({i:i, sheetRow:i+1, time:time, title:title, memo:memo, done:schDone(r)});
+  }
+  // 今日マークしたタスク（★❀）＝memo由来
+  var flagged=STATE.nodes.filter(isFlagged);
+  var totalB=blocks.length, doneB=blocks.filter(function(b){return b.done;}).length;
+  var totalF=flagged.length, doneF=flagged.filter(dailyDone).length;
+  var total=totalB+totalF, doneN=doneB+doneF;
+  var pct=total?Math.round(doneN/total*100):0;
+  var msg=total===0?'予定がまだありません':(doneN===total?'すべて完了！おつかれさまでした':'あと '+(total-doneN)+' 件');
+
+  var html='<div class="card"><div class="card-head"><div class="card-title">📅 今日の予定<span class="en">'+esc(date)+esc(nowStr)+'</span></div>'+
     '<button class="tbtn" onclick="STATE.schedule=null;renderSchedule();">↻ 更新</button></div>';
+  html+='<div class="progress"><div class="ring" style="--p:'+pct+'"><i>'+pct+'%</i></div>'+
+    '<div class="pmsg">'+esc(msg)+'<small>'+doneN+' / '+total+' 完了</small></div></div>';
   html+='<div class="shoprow"><button class="shopopen" onclick="openPasteSchedule()">✏️ 予定を貼り付け</button>'+
     '<span class="shophint">Coworkが作った予定を貼り付けて保存</span></div>';
   var dates=d.dates||[];
@@ -725,30 +735,50 @@ function renderSchedule(){
     dates.forEach(function(dt){ html+='<button class="chip'+(dt===date?' on':'')+'" onclick="pickScheduleDate(\''+jsq(dt)+'\')">'+esc(dt.slice(5))+'</button>'; });
     html+='</div>';
   }
-  if(d.empty){
+  if(!blocks.length){
     html+='<div class="empty">'+esc(date)+' の予定はまだありません'+
       '<span class="sw">「✏️ 予定を貼り付け」から、Coworkが作った予定を貼って保存できます</span></div>';
-    if(d.url) html+='<div class="hint">保存先：<a href="'+esc(d.url)+'" target="_blank" rel="noopener">ToDoスケジュール を開く</a></div>';
   }else{
-    var rows=d.rows||[], start=0;
-    if(rows.length && (/時間|時刻/.test(rows[0][0]||'') || /予定/.test(rows[0][1]||''))) start=1;
     html+='<div class="schlist">';
-    for(var i=start;i<rows.length;i++){
-      var r=rows[i]||[]; var time=(r[0]||'').trim(), title=(r[1]||'').trim(), memo=(r[2]||'').trim();
-      if(!time && !title && !memo) continue;
-      var hm=time.match(/(\d{1,2})[:：]/), hr=hm?parseInt(hm[1],10):-1;
-      var isNext = hr>=0 && hr<6;                 // 0:00–5:59 ＝ 翌日以降
-      var isSleep = /就寝|寝る/.test(title);
-      html+='<div class="schitem'+(isNext?' next':'')+(isSleep?' sleep':'')+'">'+
-        '<div class="schtime">'+esc(time)+'</div>'+
-        '<div class="schbody"><div class="schtitle">'+linkify(title)+(isNext?'<span class="schtag">翌日以降</span>':'')+'</div>'+
-        (memo?'<div class="schmemo">'+linkify(memo)+'</div>':'')+'</div></div>';
-    }
+    blocks.forEach(function(b){
+      var isSleep = /就寝|寝る/.test(b.title);
+      html+='<div class="schitem'+(b.done?' done':'')+(isSleep?' sleep':'')+'">'+
+        '<div class="check'+(b.done?' on':'')+'" onclick="toggleScheduleDone('+b.i+','+b.sheetRow+')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>'+
+        '<div class="schtime">'+esc(b.time)+'</div>'+
+        '<div class="schbody"><div class="schtitle">'+linkify(b.title)+'</div>'+
+        (b.memo?'<div class="schmemo">'+linkify(b.memo)+'</div>':'')+'</div></div>';
+    });
     html+='</div>';
-    html+='<div class="hint">「✏️ 予定を貼り付け」で更新できます（日付タブに保存）。</div>';
   }
+  // 今日マークしたタスクを統合表示（押すとmemo本体も完了）
+  if(flagged.length){
+    html+='<div class="schsub">✦ 今日マークしたタスク</div>';
+    STATE.tabs.forEach(function(t){
+      if(!STATE.nodes.some(function(n){return n.tab===t.id&&isFlagged(n);}))return;
+      html+='<div class="group-label">'+esc(t.name)+'</div>'+renderDailyTree(t.id,'',0);
+    });
+  }
+  html+='<div class="hint">○を押すと完了＝memoの該当タスクにも取り消し線が付きます。「✏️ 予定を貼り付け」で更新。</div>';
   html+='</div>';
   v.innerHTML=html;
+}
+// 予定セルの完了判定（4列目）
+function schDone(r){ return /^(true|1|✓|done|済|はい)$/i.test(String((r&&r[3])||'').trim()); }
+// 予定ブロックのチェック切替（memo本体も連動）
+function toggleScheduleDone(i, sheetRow){
+  var d=STATE.schedule; if(!d||!d.rows||!d.rows[i])return;
+  var r=d.rows[i]; var now=!schDone(r);
+  r[3]=now?'TRUE':''; renderSchedule();
+  var date=d.date||STATE.scheduleDate||STATE.today;
+  call('setScheduleDone',[date, sheetRow, now]).then(function(res){
+    var ids=(res&&res.ids)||[];
+    if(ids.length){
+      var set={}; ids.forEach(function(x){set[x]=true;});
+      STATE.nodes.forEach(function(n){ if(set[n.id]) n.done=now; });
+      if(now) toast('完了！memoの'+ids.length+'件にも取り消し線');
+      if(STATE.active===SCHEDULE) renderSchedule();
+    }
+  }).catch(failNote);
 }
 
 // ノードを1つ作る（テキスト必須＝空は作らない）。idを返す。描画は呼び出し側。

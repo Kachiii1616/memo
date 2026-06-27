@@ -211,14 +211,75 @@ function saveScheduleRows(date, rows) {
       return [String(r[0] == null ? '' : r[0]), String(r[1] == null ? '' : r[1]), String(r[2] == null ? '' : r[2])];
     }).filter(function (r) { return r[0] || r[1] || r[2]; });
     if (!norm.length) norm = [['時間', '予定', 'メモ']];
-    sh.getRange(1, 1, norm.length, 3).setValues(norm);
-    sh.getRange(1, 1, 1, 3).setFontWeight('bold').setBackground('#efece6');
+    // 4列目=完了, 5列目=memoリンク（チェック連動の戻し用）。新規貼り付けは未完了で開始。
+    const out = norm.map(function (r, i) {
+      return i === 0 ? ['時間', '予定', 'メモ', '完了', 'link'] : [r[0], r[1], r[2], '', ''];
+    });
+    sh.getRange(1, 1, out.length, 5).setValues(out);
+    sh.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#efece6');
     sh.setFrozenRows(1);
-    sh.autoResizeColumns(1, 3);
+    sh.autoResizeColumns(1, 4);
     const def = ss.getSheetByName('シート1') || ss.getSheetByName('Sheet1');
     if (def && ss.getSheets().length > 1) { try { ss.deleteSheet(def); } catch (e) {} }
     return getSchedule(date);
   });
+}
+
+// 【予定のチェック連動】予定の1行(sheetRow)の完了を切替。
+// done=true で memo の該当タスクにも取り消し線（完了）を付け、false で戻す。
+// memoの照合は予定の「予定」「メモ」テキストを名前で突き合わせ（best-effort）。
+function setScheduleDone(date, sheetRow, done) {
+  date = date || todayStr_();
+  sheetRow = Number(sheetRow) || 0;
+  return withLock_(function () {
+    const ss = getScheduleSS_();
+    const sh = ss.getSheetByName(date);
+    if (!sh || sheetRow < 2 || sheetRow > sh.getLastRow()) return { ids: [], done: !!done };
+    const lastc = Math.max(5, sh.getLastColumn());
+    const row = sh.getRange(sheetRow, 1, 1, lastc).getValues()[0];
+    sh.getRange(sheetRow, 4).setValue(done ? 'TRUE' : '');
+    let ids = [];
+    if (done) {
+      ids = matchNodes_(String(row[1] || ''), String(row[2] || ''));
+      setNodesDone_(ids, true);
+      sh.getRange(sheetRow, 5).setValue(ids.join(','));
+    } else {
+      ids = String(row[4] || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      setNodesDone_(ids, false);
+      sh.getRange(sheetRow, 5).setValue('');
+    }
+    return { ids: ids, done: !!done };
+  });
+}
+
+// 予定テキスト（タイトル＋メモ）に含まれる語を、ノード名と突き合わせて該当ID群を返す。
+function matchNodes_(title, memo) {
+  const toks = (String(title) + ' ' + String(memo))
+    .split(/[・／\/、,，\s　（）()]+/).map(function (s) { return s.trim(); })
+    .filter(function (s) { return s.length >= 2; });
+  if (!toks.length) return [];
+  const nodes = readNodes_();
+  const hit = {};
+  nodes.forEach(function (n) {
+    const t = String(n.text || '').trim();
+    if (!t) return;
+    for (let i = 0; i < toks.length; i++) {
+      const k = toks[i];
+      if (t === k || (k.length >= 4 && t.indexOf(k) >= 0) || (t.length >= 4 && k.indexOf(t) >= 0)) { hit[n.id] = true; break; }
+    }
+  });
+  return Object.keys(hit);
+}
+
+// 指定IDのノードの完了列(6)を一括更新。
+function setNodesDone_(ids, done) {
+  if (!ids || !ids.length) return;
+  const sh = nodeSheet_();
+  const v = sh.getDataRange().getValues();
+  const want = {}; ids.forEach(function (x) { want[String(x)] = true; });
+  for (let i = 1; i < v.length; i++) {
+    if (want[String(v[i][0])]) sh.getRange(i + 1, 6).setValue(done ? 'TRUE' : '');
+  }
 }
 
 // 【アプリ内で生成】❀/★を付けた今日のタスクを、方針の優先順位ルールで時間割にして
