@@ -101,6 +101,15 @@
   .shopopen:hover{background:#eee2d6}
   .shophint{font-size:11.5px;color:var(--sub)}
   .shopbar{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px}
+  /* 概要（ToDoOverview） */
+  .ovwrap{overflow-x:auto;margin:6px 0 2px}
+  .ovtable{border-collapse:collapse;width:100%;font-size:13px}
+  .ovtable th,.ovtable td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top;line-height:1.5}
+  .ovtable th{background:#efece6;font-weight:600;white-space:nowrap}
+  .ovtable td a{color:var(--accent)}
+  .ovtext{padding:4px 2px}
+  .ovtext p{margin:4px 0;line-height:1.7;font-size:14px}
+  .ovtext .ovsp{height:8px}
   .bulkbar button{border:1px solid var(--line);background:var(--paper2);cursor:pointer;color:var(--sub);
     font-size:12px;padding:4px 10px;border-radius:8px;line-height:1.2}
   .bulkbar button:hover{border-color:var(--accent);color:var(--ink)}
@@ -237,6 +246,7 @@
 var STATE={today:'',tabs:[],nodes:[],todayChecks:[],active:null,editTabs:false,editingId:null,menuId:null,shopping:null};
 var TAB_COLORS=['#b89a8c','#9bb0b8','#c2a9b4','#a9b29a','#c9b489','#a8a59c'];
 var DAILY='__daily__';
+var OVERVIEW='__overview__';
 
 /* ===== サーバ呼び出し（無い場合はMOCKへ） ===== */
 function call(fn,args){
@@ -276,6 +286,13 @@ function renderTabs(){
   dt.innerHTML='<span class="no">✦</span>今日のチェック';
   dt.onclick=function(){switchTab(DAILY);};
   bar.appendChild(dt);
+  // 概要（Cowork等が書き出した ToDoOverview を表示）
+  var ov=document.createElement('button');
+  ov.className='tab daily'+(STATE.active===OVERVIEW?' active':'');
+  ov.style.setProperty('--tabc','#9bb0b8');
+  ov.innerHTML='<span class="no">📋</span>概要';
+  ov.onclick=function(){openOverview();};
+  bar.appendChild(ov);
   // 改行（以降の大タブは次の行から）
   var brk=document.createElement('span');brk.className='brk';bar.appendChild(brk);
   STATE.tabs.forEach(function(t,i){
@@ -342,7 +359,7 @@ function moveTab(i,dir){
 }
 
 /* ===== ビュー ===== */
-function renderView(){ if(STATE.shopping)renderShop(STATE.shopping); else if(STATE.active===DAILY)renderDaily(); else renderTab(STATE.active); }
+function renderView(){ if(STATE.shopping)renderShop(STATE.shopping); else if(STATE.active===OVERVIEW)renderOverview(); else if(STATE.active===DAILY)renderDaily(); else renderTab(STATE.active); }
 
 function childrenOf(tabId,parentId){
   return STATE.nodes.filter(function(n){return n.tab===tabId&&n.parentId===parentId;})
@@ -544,6 +561,41 @@ function clearBought(tabId){
   bought.forEach(function(n){ call('updateNode',[n.id,'today',false]).catch(failNote); call('updateNode',[n.id,'done',false]).catch(failNote); });
   syncShop(tabId);
   toast(bought.length+'件を片付けました');
+}
+
+/* ===== 概要（ToDoOverview シートを表示）===== */
+function openOverview(){ commitEdit(false); STATE.editingId=null; cleanupEmptyNodes(); STATE.shopping=null; STATE.active=OVERVIEW; STATE.menuId=null; renderTabs(); renderOverview(); }
+function loadOverview(){
+  call('getOverview',[]).then(function(d){ STATE.overview=d||{empty:true}; if(STATE.active===OVERVIEW) renderOverview(); })
+    .catch(function(){ STATE.overview={empty:true,err:true}; if(STATE.active===OVERVIEW) renderOverview(); });
+}
+function renderOverview(){
+  var v=document.getElementById('view'), d=STATE.overview;
+  if(!d){ v.innerHTML='<div class="loading">よみこみ中…</div>'; loadOverview(); return; }
+  var html='<div class="card"><div class="card-head"><div class="card-title">📋 概要<span class="en">overview</span></div>'+
+    '<button class="tbtn" onclick="STATE.overview=null;renderOverview();">↻ 更新</button></div>';
+  if(d.empty){
+    html+='<div class="empty">「ToDoOverview」シートがまだありません'+
+      '<span class="sw">Coworkに「ToDoメモのスプレッドシートに『ToDoOverview』シートを作って書き込んで」と頼んでください</span></div>';
+  }else{
+    var rows=d.rows||[], maxc=0; rows.forEach(function(r){ if(r.length>maxc) maxc=r.length; });
+    if(maxc<=1){
+      html+='<div class="ovtext">';
+      rows.forEach(function(r){ var t=(r[0]||'').trim(); html+= t? '<p>'+linkify(t)+'</p>' : '<div class="ovsp"></div>'; });
+      html+='</div>';
+    }else{
+      html+='<div class="ovwrap"><table class="ovtable">';
+      rows.forEach(function(r,ri){
+        html+='<tr>';
+        for(var c=0;c<maxc;c++){ var cell=r[c]||''; html+= (ri===0?'<th>'+esc(cell)+'</th>':'<td>'+linkify(cell)+'</td>'); }
+        html+='</tr>';
+      });
+      html+='</table></div>';
+    }
+  }
+  html+='<div class="hint">Cowork等が「ToDoOverview」シートに書いた内容を表示しています（読み取り専用）。↻更新で最新に。</div>';
+  html+='</div>';
+  v.innerHTML=html;
 }
 
 function createNode(tabId,parentId,order,text){

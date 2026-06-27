@@ -80,6 +80,19 @@ function getData(dateStr) {
   };
 }
 
+// 「ToDoOverview」（または「概要」）シートを読み取って返す。アプリの「概要」タブ用。
+// Cowork等がこのシートに書き込めば、アプリ（携帯）でそのまま読める。
+function getOverview() {
+  const ss = getSS_();
+  const sh = ss.getSheetByName('ToDoOverview') || ss.getSheetByName('概要');
+  if (!sh) return { empty: true };
+  const last = sh.getLastRow(), lastc = sh.getLastColumn();
+  if (last < 1 || lastc < 1) return { empty: true };
+  const rows = sh.getRange(1, 1, last, lastc).getValues()
+    .map(function (r) { return r.map(function (c) { return (c === null || c === undefined) ? '' : String(c); }); });
+  return { rows: rows, sheet: sh.getName() };
+}
+
 // ===== タブ操作 =============================================================
 // 新タブ作成（idはクライアント生成）。種類に応じてひな形ノードも作る。
 function addTab(id, name, type) {
