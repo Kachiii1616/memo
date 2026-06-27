@@ -128,9 +128,20 @@
   .clv{border:1px solid var(--line);background:var(--paper);cursor:pointer;color:var(--sub);
     font-size:12.5px;padding:6px 13px;border-radius:999px}
   .clv.on{border-color:var(--accent);color:var(--ink);background:#f3ece4}
-  .cmpgo{margin-left:auto;border:1px solid var(--accent);background:#f3ece4;cursor:pointer;color:var(--ink);
+  .cmpgo{border:1px solid var(--accent);background:#f3ece4;cursor:pointer;color:var(--ink);
     font-family:'Shippori Mincho',serif;font-size:14px;padding:8px 18px;border-radius:999px;letter-spacing:.03em}
   .cmpgo:hover{background:#eee2d6}
+  .cmpdl{display:block;width:100%;border:1px solid var(--line);border-radius:11px;padding:8px 12px;margin-top:6px;
+    font:inherit;font-size:13.5px;color:var(--ink);background:var(--paper);outline:none}
+  .cmpdl:focus{border-color:var(--accent)}
+  .cmpundo{margin-left:auto;border:1px solid var(--line);background:var(--paper);cursor:pointer;color:var(--sub);
+    font-size:12.5px;padding:7px 13px;border-radius:999px}
+  .cmpundo:hover{border-color:var(--accent);color:var(--ink)}
+  /* 期限バッジ */
+  .dl{flex:none;font-size:11px;color:#b08a2e;border:1px solid #e3d2a3;background:#faf4e6;
+    padding:1px 7px;border-radius:8px;margin:1px 4px 0 0;white-space:nowrap;align-self:center}
+  /* ドラッグで「中へ」入れる時の表示 */
+  .row.drop-into{background:#e9efe3;box-shadow:inset 3px 0 0 var(--done),inset 0 0 0 1px var(--done)}
   .bulkbar button{border:1px solid var(--line);background:var(--paper2);cursor:pointer;color:var(--sub);
     font-size:12px;padding:4px 10px;border-radius:8px;line-height:1.2}
   .bulkbar button:hover{border-color:var(--accent);color:var(--ink)}
@@ -262,11 +273,13 @@
 <div id="composer" class="composer" style="display:none">
   <div id="cmpsel" class="cmpsel"></div>
   <input id="cmpinput" class="cmpinput" maxlength="200" placeholder="追加する内容を入力" onkeydown="cmpKey(event)">
+  <input id="cmpdl" class="cmpdl" maxlength="40" placeholder="期限（任意：6/30・今週・早め など）" onkeydown="if(event.key==='Enter'){event.preventDefault();composerSubmit();}">
   <div class="cmpctrl">
     <span class="cmpl">レベル</span>
     <button class="clv" data-l="0" onclick="setCLevel(0)">中タブ</button>
     <button class="clv" data-l="1" onclick="setCLevel(1)">小タブ</button>
     <button class="clv" data-l="2" onclick="setCLevel(2)">孫</button>
+    <button class="cmpundo" onclick="undo()" title="元に戻す">↶ 戻る</button>
     <button id="cmpgo" class="cmpgo" onclick="composerSubmit()">＋ 追加</button>
   </div>
 </div>
@@ -428,7 +441,7 @@ function renderTab(tabId){
   html+='<div class="tree" ondblclick="if(event.target===this)addRoot(\''+jsq(tabId)+'\')">'+renderKids(tabId,'',0)+'</div>';
   if(!all.length) html+='<div class="empty" ondblclick="addRoot(\''+jsq(tabId)+'\')">からっぽです<span class="sw">ここをダブルクリックで追加</span></div>';
   html+='<div class="addline"><button onclick="addRoot(\''+jsq(tabId)+'\')">＋ 中タブを追加</button></div>';
-  html+='<div class="hint">行を<b>1タップ＝選択</b>／<b>もう1タップ＝編集</b>。入力・追加・レベル(中/小/孫)は<b>下のバー</b>でまとめて操作。<br>左の<b>⠿をドラッグで移動</b> ・ 右のマークで '+markIcon('daily',true)+'<b style="color:var(--gold)">定期</b>／'+markIcon('today',true)+'<b style="color:var(--rose)">その日</b> ・ … で移動/削除</div>';
+  html+='<div class="hint">行を<b>1タップ＝選択</b>／<b>もう1タップ＝編集</b>。入力・期限・追加・レベル(中/小/孫)は<b>下のバー</b>でまとめて操作。<br><b>⠿ドラッグ</b>：左寄せ＝同じ並び／<b>右寄せ＝その項目の中へ</b> ・ 右のマークで '+markIcon('daily',true)+'<b style="color:var(--gold)">定期</b>／'+markIcon('today',true)+'<b style="color:var(--rose)">その日</b> ・ … で移動/削除</div>';
   html+='</div>';
   v.innerHTML=html;
 }
@@ -452,6 +465,7 @@ function nodeRow(n,depth){
   h+='<div class="twist'+(kids?'':' empty')+'" onclick="toggleCollapse(\''+jsq(n.id)+'\')">'+(kids?(n.collapsed?'▶':'▼'):'•')+'</div>';
   h+='<div class="check'+(n.done?' on':'')+'" onclick="toggleDone(\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>';
   h+='<div class="label" title="1回タップ＝選択／もう1回＝編集" onclick="rowClick(\''+jsq(n.id)+'\')" ondblclick="rowDbl(\''+jsq(n.id)+'\')">'+linkify(n.text)+'</div>';
+  if(n.note) h+='<span class="dl" title="期限">〆'+esc(n.note)+'</span>';
   h+='<button class="mk2 daily'+(n.daily?' on':'')+'" title="定期（毎日くりかえし）／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'daily\')">'+markIcon('daily',n.daily)+'</button>';
   h+='<button class="mk2 today'+(n.today?' on':'')+'" title="その日にすること／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'today\')">'+markIcon('today',n.today)+'</button>';
   h+='<button class="menu'+(STATE.menuId===n.id?' on':'')+'" title="操作" onclick="toggleMenu(\''+jsq(n.id)+'\')">⋯</button>';
@@ -700,13 +714,13 @@ function selectRow(id){
   var n=byId(id); if(!n) return;
   STATE.selected=id; STATE.editing=false; STATE.menuId=null;
   STATE.cLevel=Math.min(depthOf(n),2);
-  setComposerInput(''); renderView();
+  setComposerInput(''); setComposerDeadline(''); renderView();
 }
 function beginEdit(id){
   var n=byId(id); if(!n) return;
   STATE.selected=id; STATE.editing=true; STATE.menuId=null;
   STATE.cLevel=Math.min(depthOf(n),2);
-  setComposerInput(n.text); renderView(); focusComposerInput();
+  setComposerInput(n.text); setComposerDeadline(n.note); renderView(); focusComposerInput();
 }
 function depthOf(n){ var d=0,cur=n,g=0; while(cur&&cur.parentId&&g++<30){ cur=byId(cur.parentId); if(!cur)break; d++; } return d; }
 
@@ -716,13 +730,13 @@ function isDescendant(maybeChildId, ancestorId){
   while(cur && cur.parentId && guard++<60){ if(cur.parentId===ancestorId) return true; cur=byId(cur.parentId); }
   return false;
 }
-function clearDrop(){ var e=document.querySelectorAll('.drop-after'); for(var i=0;i<e.length;i++) e[i].classList.remove('drop-after'); }
+function clearDrop(){ var e=document.querySelectorAll('.drop-after,.drop-into'); for(var i=0;i<e.length;i++){ e[i].classList.remove('drop-after'); e[i].classList.remove('drop-into'); } }
 function dragStart(e, id){
   if(STATE.editing) return;
   e.preventDefault();
   var src=document.querySelector('.row[data-id="'+id+'"]'); if(src) src.classList.add('dragsrc');
   document.body.classList.add('dragging');
-  var target=null;
+  var target=null, mode='after';
   function move(ev){
     if(ev.cancelable) ev.preventDefault();
     var p = ev.touches?ev.touches[0]:ev;
@@ -730,7 +744,10 @@ function dragStart(e, id){
     var row = el && el.closest ? el.closest('.row') : null;
     clearDrop();
     if(row && row.getAttribute('data-id') && row.getAttribute('data-id')!==id){
-      target=row.getAttribute('data-id'); row.classList.add('drop-after');
+      target=row.getAttribute('data-id');
+      var rect=row.getBoundingClientRect();
+      mode = (p.clientX > rect.left + rect.width*0.5) ? 'into' : 'after';  // 右寄り＝中へ／左寄り＝同じ並び
+      row.classList.add(mode==='into'?'drop-into':'drop-after');
     } else target=null;
   }
   function up(){
@@ -738,17 +755,23 @@ function dragStart(e, id){
     document.removeEventListener('pointerup',up);
     document.body.classList.remove('dragging'); clearDrop();
     if(src) src.classList.remove('dragsrc');
-    if(target) dropMove(id, target);
+    if(target) dropMove(id, target, mode);
   }
   document.addEventListener('pointermove',move,{passive:false});
   document.addEventListener('pointerup',up);
 }
-function dropMove(dragId, targetId){
+function dropMove(dragId, targetId, mode){
   var d=byId(dragId), t=byId(targetId);
   if(!d||!t||dragId===targetId) return;
   if(isDescendant(targetId, dragId)){ toast('その中には移動できません'); return; }
   snap();
-  d.parentId=t.parentId; d.order=t.order+0.5;   // 落とした項目の直後（同じ並び）へ
+  if(mode==='into'){                      // 中へ＝tの子（最後）にする
+    t.collapsed=false;
+    d.parentId=t.id; d.order=endOrder(t.tab,t.id);
+    call('updateNode',[t.id,'collapsed',false]).catch(failNote);
+  } else {                                // 同じ並び＝tの直後
+    d.parentId=t.parentId; d.order=t.order+0.5;
+  }
   renderView();
   call('applyMoves',[[{id:d.id, parentId:d.parentId, order:d.order}]]).catch(failNote);
   reflow(d.tab, d.parentId);
@@ -756,10 +779,11 @@ function dropMove(dragId, targetId){
 
 /* ===== 下部入力バー（コンポーザ）===== */
 function setComposerInput(v){ var i=document.getElementById('cmpinput'); if(i) i.value=v||''; }
+function setComposerDeadline(v){ var i=document.getElementById('cmpdl'); if(i) i.value=v||''; }
 function focusComposerInput(){ setTimeout(function(){ var i=document.getElementById('cmpinput'); if(i){ i.focus(); var l=i.value.length; i.setSelectionRange(l,l); } },30); }
 function cmpKey(e){ if(e.key==='Enter'){ e.preventDefault(); composerSubmit(); } else if(e.key==='Escape'){ clearSelection(); } }
 function setCLevel(l){ STATE.cLevel=l; renderComposer(); }
-function clearSelection(){ STATE.selected=null; STATE.editing=false; setComposerInput(''); renderView(); }
+function clearSelection(){ STATE.selected=null; STATE.editing=false; setComposerInput(''); setComposerDeadline(''); renderView(); }
 function commitComposer(){ if(STATE.editing) composerSubmit(); }
 // レベル変更：絶対の深さ(0=中タブ/1=小タブ/2=孫)に合わせて字下げ/字上げ（描画なし）
 function doIndentSilent(n){
@@ -788,14 +812,16 @@ function removeNodeSilent(id){
 }
 function composerSubmit(){
   var inp=document.getElementById('cmpinput'); var text=inp?inp.value.trim():'';
+  var dli=document.getElementById('cmpdl'); var dl=dli?dli.value.trim():'';
   if(STATE.editing && STATE.selected){           // ── 編集の確定 ──
     var n=byId(STATE.selected);
     if(!n){ clearSelection(); return; }
     if(!text){ snap(); removeNodeSilent(n.id); STATE.selected=null; STATE.editing=false; renderView(); return; }
     snap();
     if(text!==n.text){ n.text=text; call('updateNode',[n.id,'text',text]).catch(failNote); }
+    if(dl!==(n.note||'')){ n.note=dl; call('updateNode',[n.id,'note',dl]).catch(failNote); }  // 期限はnoteに保存
     applyLevel(n, STATE.cLevel);
-    STATE.editing=false; setComposerInput(''); renderView();
+    STATE.editing=false; setComposerInput(''); setComposerDeadline(''); renderView();
     return;
   }
   // ── 追加 ──
@@ -809,8 +835,9 @@ function composerSubmit(){
     reflow(tabId, sel.parentId);
     var nn=byId(nid); if(nn) applyLevel(nn, STATE.cLevel);
   }
+  if(dl){ var cn=byId(nid); if(cn){ cn.note=dl; call('updateNode',[nid,'note',dl]).catch(failNote); } }
   STATE.selected=nid; STATE.editing=false;
-  setComposerInput(''); renderView(); focusComposerInput();
+  setComposerInput(''); setComposerDeadline(''); renderView(); focusComposerInput();
 }
 function renderComposer(){
   var c=document.getElementById('composer'); if(!c) return;
