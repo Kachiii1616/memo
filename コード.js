@@ -282,14 +282,14 @@ function setNodesDone_(ids, done) {
   }
 }
 
-// 【アプリ内で生成】❀/★を付けた今日のタスクを、方針の優先順位ルールで時間割にして
+// 【アプリ内で生成】❀/★を付けた今日のタスクを、方針の優先順位ルールで1時間ごとの時間割にして
 // 「ToDoスケジュール」の日付タブへ書き込む（同日は上書き）。APIキー不要のルールベース。
 // 並び：家事 → 連絡 → 期限あり → 生活の買い出し → エリア順(生活→ファイナンス→活動→…)。お仕事は別枠で末尾。
 function generateSchedule(opts) {
   return withLock_(function () {
     opts = opts || {};
     const date = opts.date || todayStr_();
-    const slot = Number(opts.slot) || 45;
+    const slot = Number(opts.slot) || 60;
     const nodes = readNodes_();
     const tabs = readTabs_();
     const tabName = {}; tabs.forEach(function (t) { tabName[t.id] = t.name; });
@@ -314,29 +314,92 @@ function generateSchedule(opts) {
 
     const now = new Date();
     let mins = now.getHours() * 60 + now.getMinutes();
-    mins = Math.ceil(mins / 30) * 30; // 次の30分に丸め
-    const rows = [['時間', '予定', 'メモ']];
+    mins = Math.ceil(mins / 60) * 60; // 次の1時間ちょうどに丸め（1時間ごとの枠）
+    if (mins < 7 * 60) mins = 7 * 60;  // 早朝は7:00スタート
+    const rows = [['時間', '予定', 'メモ', '完了', 'link']];
     tasks.forEach(function (n) {
       if (mins >= 22 * 60) return; // 22時以降は入れない
+      if (mins === 12 * 60) { rows.push(['12:00', '昼食・休憩', '', '', '']); mins = 13 * 60; }
       const hh = Math.floor(mins / 60), mm = mins % 60;
       const time = (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
       const tags = [tabName[n.tab] || ''];
       if (isKaji(n)) tags.push('家事'); else if (isRenraku(n)) tags.push('連絡'); else if (hasDeadline(n)) tags.push('期限'); else if (isKaimono(n)) tags.push('買い物');
-      rows.push([time, n.text, tags.filter(Boolean).join(' / ')]);
+      rows.push([time, n.text, tags.filter(Boolean).join(' / '), '', '']);
       mins += slot;
-      if (mins > 12 * 60 && mins < 13 * 60) mins = 13 * 60; // 昼休みをまたぐなら13:00へ
     });
-    if (rows.length === 1) rows.push(['—', '今日の ❀／★ 項目がありません', 'まず項目に ❀ を付けてください']);
+    if (rows.length === 1) rows.push(['—', '今日の ❀／★ 項目がありません', 'まず項目に ❀ を付けてください', '', '']);
 
     const ss = getScheduleSS_();
     let sh = ss.getSheetByName(date);
     if (sh) sh.clear(); else sh = ss.insertSheet(date);
-    sh.getRange(1, 1, rows.length, 3).setValues(rows);
-    sh.getRange(1, 1, 1, 3).setFontWeight('bold').setBackground('#efece6');
+    sh.getRange(1, 1, rows.length, 5).setValues(rows);
+    sh.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#efece6');
     sh.setFrozenRows(1);
-    sh.autoResizeColumns(1, 3);
+    sh.autoResizeColumns(1, 4);
     const def = ss.getSheetByName('シート1') || ss.getSheetByName('Sheet1');
     if (def && ss.getSheets().length > 1) { try { ss.deleteSheet(def); } catch (e) {} }
+    return getSchedule(date);
+  });
+}
+
+// ===== 予定の1行編集（アプリの✎から）=====================================
+// 時刻文字列 "HH:MM" → 分。読めなければ大きな値（並べ替えで末尾へ）。
+function schedTimeKey_(t) {
+  const m = String(t || '').match(/^(\d{1,2})[:：](\d{2})/);
+  return m ? (Number(m[1]) * 60 + Number(m[2])) : 100000;
+}
+// 日付シートを取得（無ければヘッダ付きで新規作成）
+function ensureScheduleSheet_(date) {
+  const ss = getScheduleSS_();
+  let sh = ss.getSheetByName(date);
+  if (!sh) {
+    sh = ss.insertSheet(date);
+    sh.getRange(1, 1, 1, 5).setValues([['時間', '予定', 'メモ', '完了', 'link']]).setFontWeight('bold').setBackground('#efece6');
+    sh.setFrozenRows(1);
+    const def = ss.getSheetByName('シート1') || ss.getSheetByName('Sheet1');
+    if (def && ss.getSheets().length > 1) { try { ss.deleteSheet(def); } catch (e) {} }
+  }
+  return sh;
+}
+// データ行を時間順に並べ直す（時間なしは元の順のまま末尾）
+function sortScheduleSheet_(sh) {
+  const last = sh.getLastRow();
+  if (last < 3) return;
+  const rows = sh.getRange(2, 1, last - 1, 5).getValues();
+  const idx = rows.map(function (r, i) { return { r: r, k: schedTimeKey_(r[0]), i: i }; });
+  idx.sort(function (a, b) { return (a.k - b.k) || (a.i - b.i); });
+  sh.getRange(2, 1, rows.length, 5).setValues(idx.map(function (x) { return x.r; }));
+}
+// 1行を編集（時間・予定・メモ）。完了/linkはそのまま。編集後は時間順に整列。
+function updateScheduleRow(date, sheetRow, time, title, memo) {
+  date = date || todayStr_();
+  sheetRow = Number(sheetRow) || 0;
+  return withLock_(function () {
+    const sh = getScheduleSS_().getSheetByName(date);
+    if (sh && sheetRow >= 2 && sheetRow <= sh.getLastRow()) {
+      sh.getRange(sheetRow, 1, 1, 3).setValues([[String(time || ''), String(title || ''), String(memo || '')]]);
+      sortScheduleSheet_(sh);
+    }
+    return getSchedule(date);
+  });
+}
+// 1行を追加（シートが無ければ作る）。追加後は時間順に整列。
+function addScheduleRow(date, time, title, memo) {
+  date = date || todayStr_();
+  return withLock_(function () {
+    const sh = ensureScheduleSheet_(date);
+    sh.appendRow([String(time || ''), String(title || ''), String(memo || ''), '', '']);
+    sortScheduleSheet_(sh);
+    return getSchedule(date);
+  });
+}
+// 1行を削除。
+function deleteScheduleRow(date, sheetRow) {
+  date = date || todayStr_();
+  sheetRow = Number(sheetRow) || 0;
+  return withLock_(function () {
+    const sh = getScheduleSS_().getSheetByName(date);
+    if (sh && sheetRow >= 2 && sheetRow <= sh.getLastRow()) sh.deleteRow(sheetRow);
     return getSchedule(date);
   });
 }
