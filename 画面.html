@@ -678,6 +678,26 @@ function doMakeSchedule(){
     toast('今日の予定を立てました（1時間ごと）');
   }).catch(failNote);
 }
+// 🎯 リストから「今からできること」を自動で選んで❀を付け、そのまま予定を作成
+function autoPickSchedule(){
+  var d=STATE.schedule;
+  var has=d && d.rows && d.rows.length>1 && (d.date||STATE.scheduleDate)===STATE.today;
+  if(has) openConfirm('リストから「今からできること」を自動で選んで ❀ を付け、予定を作り直します。\n（今の予定表は上書きされます）', doAutoPickSchedule);
+  else doAutoPickSchedule();
+}
+function doAutoPickSchedule(){
+  toast('タスクを選んで予定を作成中…');
+  call('autoPickAndSchedule',[{date:STATE.today, slot:60}]).then(function(d){
+    STATE.schedule=d; STATE.scheduleDate=(d&&d.date)||STATE.today;
+    var picked=(d&&d.picked)||[];
+    // サーバ側で❀が付いたので、タスク一覧も読み直してから描画
+    call('getData',[null]).then(function(g){
+      STATE.nodes=g.nodes||[]; STATE.todayChecks=g.todayChecks||[];
+      if(STATE.active===SCHEDULE) renderSchedule();
+    }).catch(function(){ if(STATE.active===SCHEDULE) renderSchedule(); });
+    toast(picked.length? 'リストから'+picked.length+'件を選んで予定を立てました' : '追加できるタスクは無かったので、マーク済みだけで予定を立てました');
+  }).catch(failNote);
+}
 // 貼り付けたテキストを [時間,予定,メモ] の行に変換（タブ区切り優先・時刻行も対応）
 function parseScheduleText(text){
   text=(text||'').trim(); if(!text) return [];
@@ -742,16 +762,26 @@ function renderSchedule(){
     '<button class="tbtn" onclick="STATE.schedule=null;renderSchedule();">↻ 更新</button></div>';
   html+='<div class="progress"><div class="ring" style="--p:'+pct+'"><i>'+pct+'%</i></div>'+
     '<div class="pmsg">'+esc(msg)+'<small>'+doneN+' / '+total+' 完了</small></div></div>';
-  html+='<div class="shoprow"><button class="shopopen" onclick="makeSchedule()">🪄 予定を自動作成</button>'+
-    '<button class="shopopen" onclick="openPasteSchedule()">✏️ 貼り付け</button>'+
-    '<span class="shophint">❀/★ を付けたタスクから1時間ごとに組みます</span></div>';
+  html+='<div class="shoprow"><button class="shopopen" onclick="makeSchedule()">🪄 マークから予定作成</button>'+
+    '<button class="shopopen" onclick="autoPickSchedule()">🎯 自動で選んで作成</button>'+
+    '<button class="shopopen" onclick="openPasteSchedule()">✏️ 貼り付け</button></div>'+
+    '<div class="shophint" style="margin:4px 2px 0">🪄＝❀/★のタスクを1時間ごとに配置 ／ 🎯＝リストから「今からできること」も自動で選んで❀を付けてから予定を作成</div>';
   var dates=d.dates||[];
   if(dates.length){
     html+='<div class="datebar">';
     dates.forEach(function(dt){ html+='<button class="chip'+(dt===date?' on':'')+'" onclick="pickScheduleDate(\''+jsq(dt)+'\')">'+esc(dt.slice(5))+'</button>'; });
     html+='</div>';
   }
+  // ✦ 今日マークしたタスク（時間割の上に表示。押すとmemo本体も完了・❀/★タップで解除）
+  if(flagged.length){
+    html+='<div class="schsub" style="margin-top:8px">✦ 今日マークしたタスク</div>';
+    STATE.tabs.forEach(function(t){
+      if(!STATE.nodes.some(function(n){return n.tab===t.id&&isFlagged(n);}))return;
+      html+='<div class="group-label">'+esc(t.name)+'</div>'+renderDailyTree(t.id,'',0);
+    });
+  }
   // 1時間ごとの時間割：予定のある時間はその内容、空いている時間はタップで追加
+  html+='<div class="schsub">🕐 時間割</div>';
   var timed={}, untimed=[];
   blocks.forEach(function(b,bi){ b.bi=bi; var h=schHour(b.time); if(h==null) untimed.push(b); else (timed[h]=timed[h]||[]).push(b); });
   var hs=7, he=22;
@@ -763,14 +793,6 @@ function renderSchedule(){
   }
   untimed.forEach(function(b){ html+=schRowHtml(b); });
   html+='</div>';
-  // 今日マークしたタスクを統合表示（押すとmemo本体も完了）
-  if(flagged.length){
-    html+='<div class="schsub">✦ 今日マークしたタスク</div>';
-    STATE.tabs.forEach(function(t){
-      if(!STATE.nodes.some(function(n){return n.tab===t.id&&isFlagged(n);}))return;
-      html+='<div class="group-label">'+esc(t.name)+'</div>'+renderDailyTree(t.id,'',0);
-    });
-  }
   html+='<div class="hint">○＝完了（memoの該当タスクにも取り消し線）／<b>✎＝あとから編集</b>（時間・内容・メモ・削除）／<b>空いている時間をタップ＝予定を書く</b>。</div>';
   html+='</div>';
   v.innerHTML=html;

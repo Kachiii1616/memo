@@ -189,7 +189,10 @@ function getSchedule(dateStr) {
   const last = sh.getLastRow(), lastc = sh.getLastColumn();
   if (last < 1 || lastc < 1) return Object.assign({ empty: true }, base);
   const rows = sh.getRange(1, 1, last, lastc).getValues()
-    .map(function (r) { return r.map(function (c) { return (c === null || c === undefined) ? '' : String(c); }); });
+    .map(function (r) { return r.map(function (c, ci) {
+      if (ci === 0) return schedTimeStr_(c);  // 時間列：Date化していても「HH:mm」だけにする
+      return (c === null || c === undefined) ? '' : String(c);
+    }); });
   return Object.assign({ rows: rows }, base);
 }
 // 保存先スプレッドシートのURL/名前だけ取得（案内表示用）
@@ -215,7 +218,7 @@ function saveScheduleRows(date, rows) {
     const out = norm.map(function (r, i) {
       return i === 0 ? ['時間', '予定', 'メモ', '完了', 'link'] : [r[0], r[1], r[2], '', ''];
     });
-    sh.getRange(1, 1, out.length, 5).setValues(out);
+    sh.getRange(1, 1, out.length, 5).setNumberFormat('@').setValues(out);
     sh.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#efece6');
     sh.setFrozenRows(1);
     sh.autoResizeColumns(1, 4);
@@ -286,67 +289,136 @@ function setNodesDone_(ids, done) {
 // 「ToDoスケジュール」の日付タブへ書き込む（同日は上書き）。APIキー不要のルールベース。
 // 並び：家事 → 連絡 → 期限あり → 生活の買い出し → エリア順(生活→ファイナンス→活動→…)。お仕事は別枠で末尾。
 function generateSchedule(opts) {
+  return withLock_(function () { return buildSchedule_(opts || {}); });
+}
+
+// 【おまかせ生成】TodoListから「今の時刻からでもできること」を自動で選んで ❀ を付け、
+// マーク済み＋選んだぶんをまとめて1時間ごとの時間割にする。
+function autoPickAndSchedule(opts) {
   return withLock_(function () {
     opts = opts || {};
-    const date = opts.date || todayStr_();
-    const slot = Number(opts.slot) || 60;
-    const nodes = readNodes_();
-    const tabs = readTabs_();
-    const tabName = {}; tabs.forEach(function (t) { tabName[t.id] = t.name; });
-    const byId = {}; nodes.forEach(function (n) { byId[n.id] = n; });
-    const hasKids = {}; nodes.forEach(function (n) { if (n.parentId) hasKids[n.parentId] = true; });
-
-    const tasks = nodes.filter(function (n) { return (n.today || n.daily) && !hasKids[n.id]; });
-    function ancestry(n) { const a = []; let cur = n, g = 0; while (cur && cur.parentId && g++ < 20) { const p = byId[cur.parentId]; if (!p) break; a.unshift(p.text); cur = p; } return a; }
-    function isKaji(n) { return ancestry(n).some(function (t) { return /家$|家事/.test(t); }) || /洗濯|掃除|片付|キッチン|お風呂|洗面|トイレ|掃除機|ゴミ/.test(n.text); }
-    function isRenraku(n) { return ancestry(n).some(function (t) { return /連絡/.test(t); }); }
-    function hasDeadline(n) { return /(\d{1,2}\s*[\/月]\s*\d{1,2})|(\d{1,2}\s*日)|(期限|締切|〆|予約)/.test(n.text); }
-    function isKaimono(n) { const tn = tabName[n.tab] || ''; if (/定期購入/.test(tn)) return true; return ancestry(n).some(function (t) { return /購入|買/.test(t); }); }
-    function areaRank(n) { const tn = tabName[n.tab] || ''; if (/お仕事/.test(tn)) return 90; if (/生活|定期購入/.test(tn)) return 1; if (/ファイナンス/.test(tn)) return 2; if (/音楽|カメラ/.test(tn)) return 3; return 5; }
-    function rank(n) {
-      if (isKaji(n)) return 0;
-      if (isRenraku(n)) return 1;
-      if (hasDeadline(n)) return 2;
-      if (isKaimono(n)) return 3;
-      return 10 + areaRank(n);
-    }
-    tasks.sort(function (a, b) { const ra = rank(a), rb = rank(b); if (ra !== rb) return ra - rb; return (a.order || 0) - (b.order || 0); });
-
-    const now = new Date();
-    let mins = now.getHours() * 60 + now.getMinutes();
-    mins = Math.ceil(mins / 60) * 60; // 次の1時間ちょうどに丸め（1時間ごとの枠）
-    if (mins < 7 * 60) mins = 7 * 60;  // 早朝は7:00スタート
-    const rows = [['時間', '予定', 'メモ', '完了', 'link']];
-    tasks.forEach(function (n) {
-      if (mins >= 22 * 60) return; // 22時以降は入れない
-      if (mins === 12 * 60) { rows.push(['12:00', '昼食・休憩', '', '', '']); mins = 13 * 60; }
-      const hh = Math.floor(mins / 60), mm = mins % 60;
-      const time = (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
-      const tags = [tabName[n.tab] || ''];
-      if (isKaji(n)) tags.push('家事'); else if (isRenraku(n)) tags.push('連絡'); else if (hasDeadline(n)) tags.push('期限'); else if (isKaimono(n)) tags.push('買い物');
-      rows.push([time, n.text, tags.filter(Boolean).join(' / '), '', '']);
-      mins += slot;
-    });
-    if (rows.length === 1) rows.push(['—', '今日の ❀／★ 項目がありません', 'まず項目に ❀ を付けてください', '', '']);
-
-    const ss = getScheduleSS_();
-    let sh = ss.getSheetByName(date);
-    if (sh) sh.clear(); else sh = ss.insertSheet(date);
-    sh.getRange(1, 1, rows.length, 5).setValues(rows);
-    sh.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#efece6');
-    sh.setFrozenRows(1);
-    sh.autoResizeColumns(1, 4);
-    const def = ss.getSheetByName('シート1') || ss.getSheetByName('Sheet1');
-    if (def && ss.getSheets().length > 1) { try { ss.deleteSheet(def); } catch (e) {} }
-    return getSchedule(date);
+    const picked = autoPickTasks_();
+    const res = buildSchedule_(opts);
+    res.picked = picked.map(function (n) { return n.text; });
+    return res;
   });
 }
 
+// タスク判定のヘルパー一式（generateSchedule / autoPickAndSchedule 共用）
+function schedHelpers_() {
+  const nodes = readNodes_();
+  const tabs = readTabs_();
+  const tabName = {}; tabs.forEach(function (t) { tabName[t.id] = t.name; });
+  const byId = {}; nodes.forEach(function (n) { byId[n.id] = n; });
+  const hasKids = {}; nodes.forEach(function (n) { if (n.parentId) hasKids[n.parentId] = true; });
+  function ancestry(n) { const a = []; let cur = n, g = 0; while (cur && cur.parentId && g++ < 20) { const p = byId[cur.parentId]; if (!p) break; a.unshift(p.text); cur = p; } return a; }
+  function isKaji(n) { return ancestry(n).some(function (t) { return /家$|家事/.test(t); }) || /洗濯|掃除|片付|キッチン|お風呂|洗面|トイレ|掃除機|ゴミ/.test(n.text); }
+  function isRenraku(n) { return ancestry(n).some(function (t) { return /連絡/.test(t); }); }
+  function hasDeadline(n) { return /(\d{1,2}\s*[\/月]\s*\d{1,2})|(\d{1,2}\s*日)|(期限|締切|〆|予約)/.test(n.text); }
+  function isKaimono(n) { const tn = tabName[n.tab] || ''; if (/定期購入/.test(tn)) return true; return ancestry(n).some(function (t) { return /購入|買/.test(t); }); }
+  function isOdekake(n) { return ancestry(n).some(function (t) { return /場所|お出かけ/.test(t); }); }
+  function isWork(n) { return /お仕事/.test(tabName[n.tab] || ''); }
+  function areaRank(n) { const tn = tabName[n.tab] || ''; if (/お仕事/.test(tn)) return 90; if (/生活|定期購入/.test(tn)) return 1; if (/ファイナンス/.test(tn)) return 2; if (/音楽|カメラ/.test(tn)) return 3; return 5; }
+  function rank(n) {
+    if (isKaji(n)) return 0;
+    if (isRenraku(n)) return 1;
+    if (hasDeadline(n)) return 2;
+    if (isKaimono(n)) return 3;
+    return 10 + areaRank(n);
+  }
+  return { nodes: nodes, tabs: tabs, tabName: tabName, hasKids: hasKids,
+    isKaji: isKaji, isRenraku: isRenraku, hasDeadline: hasDeadline,
+    isKaimono: isKaimono, isOdekake: isOdekake, isWork: isWork, rank: rank };
+}
+
+// 「今の時刻からでもできること」をリストから選んで ❀（その日）を付ける。選んだノードを返す。
+// 連絡＝平日9〜17時／買い物・お出かけ＝20時まで／家事＝21時まで／デスクワーク等＝22時まで。
+// お仕事タブと定期購入タブ（買い物リストで管理）は対象外。今から22時までの残り枠ぶんだけ選ぶ。
+function autoPickTasks_() {
+  const H = schedHelpers_();
+  const now = new Date();
+  const hour = now.getHours() + now.getMinutes() / 60;
+  const wd = now.getDay();
+  const weekday = (wd >= 1 && wd <= 5);
+
+  let startH = Math.ceil(hour); if (startH < 7) startH = 7;
+  const slots = 22 - startH;                 // 今から22時までの1時間枠
+  if (slots <= 0) return [];
+  const marked = H.nodes.filter(function (n) { return (n.today || n.daily) && !H.hasKids[n.id]; }).length;
+  const need = slots - marked;               // マーク済みで埋まらない残り枠のぶんだけ
+  if (need <= 0) return [];
+
+  function doableNow(n) {
+    if (H.isRenraku(n)) return weekday && hour >= 9 && hour < 17;
+    if (H.isKaimono(n) || H.isOdekake(n)) return hour < 20;
+    if (H.isKaji(n)) return hour < 21;
+    return hour < 22;
+  }
+  const cand = H.nodes.filter(function (n) {
+    return !H.hasKids[n.id] && !n.done && !n.today && !n.daily
+      && !H.isWork(n) && !/定期購入/.test(H.tabName[n.tab] || '')
+      && String(n.text || '').trim() && doableNow(n);
+  });
+  cand.sort(function (a, b) { const ra = H.rank(a), rb = H.rank(b); if (ra !== rb) return ra - rb; return (a.order || 0) - (b.order || 0); });
+  const picked = cand.slice(0, need);
+  if (picked.length) {                       // ❀（その日）列を一括ON
+    const sh = nodeSheet_();
+    const v = sh.getDataRange().getValues();
+    const want = {}; picked.forEach(function (n) { want[n.id] = true; });
+    for (let i = 1; i < v.length; i++) if (want[String(v[i][0])]) sh.getRange(i + 1, 10).setValue(true);
+  }
+  return picked;
+}
+
+// 時間割の本体（ロックは呼び出し側で取る）
+function buildSchedule_(opts) {
+  const date = opts.date || todayStr_();
+  const slot = Number(opts.slot) || 60;
+  const H = schedHelpers_();
+  const tasks = H.nodes.filter(function (n) { return (n.today || n.daily) && !H.hasKids[n.id]; });
+  tasks.sort(function (a, b) { const ra = H.rank(a), rb = H.rank(b); if (ra !== rb) return ra - rb; return (a.order || 0) - (b.order || 0); });
+
+  const now = new Date();
+  let mins = now.getHours() * 60 + now.getMinutes();
+  mins = Math.ceil(mins / 60) * 60; // 次の1時間ちょうどに丸め（1時間ごとの枠）
+  if (mins < 7 * 60) mins = 7 * 60;  // 早朝は7:00スタート
+  const rows = [['時間', '予定', 'メモ', '完了', 'link']];
+  tasks.forEach(function (n) {
+    if (mins >= 22 * 60) return; // 22時以降は入れない
+    if (mins === 12 * 60) { rows.push(['12:00', '昼食・休憩', '', '', '']); mins = 13 * 60; }
+    const hh = Math.floor(mins / 60), mm = mins % 60;
+    const time = (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+    const tags = [H.tabName[n.tab] || ''];
+    if (H.isKaji(n)) tags.push('家事'); else if (H.isRenraku(n)) tags.push('連絡'); else if (H.hasDeadline(n)) tags.push('期限'); else if (H.isKaimono(n)) tags.push('買い物');
+    rows.push([time, n.text, tags.filter(Boolean).join(' / '), '', '']);
+    mins += slot;
+  });
+  if (rows.length === 1) rows.push(['—', '今日の ❀／★ 項目がありません', 'まず項目に ❀ を付けてください', '', '']);
+
+  const ss = getScheduleSS_();
+  let sh = ss.getSheetByName(date);
+  if (sh) sh.clear(); else sh = ss.insertSheet(date);
+  // 時間列が時刻(Date)に自動変換されないよう、書式を文字列にしてから書き込む
+  sh.getRange(1, 1, rows.length, 5).setNumberFormat('@').setValues(rows);
+  sh.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#efece6');
+  sh.setFrozenRows(1);
+  sh.autoResizeColumns(1, 4);
+  const def = ss.getSheetByName('シート1') || ss.getSheetByName('Sheet1');
+  if (def && ss.getSheets().length > 1) { try { ss.deleteSheet(def); } catch (e) {} }
+  return getSchedule(date);
+}
+
 // ===== 予定の1行編集（アプリの✎から）=====================================
-// 時刻文字列 "HH:MM" → 分。読めなければ大きな値（並べ替えで末尾へ）。
+// 時刻文字列 "HH:MM" → 分。読めなければ大きな値（並べ替えで末尾へ）。Date化したセルにも対応。
 function schedTimeKey_(t) {
+  if (t instanceof Date) return t.getHours() * 60 + t.getMinutes();
   const m = String(t || '').match(/^(\d{1,2})[:：](\d{2})/);
   return m ? (Number(m[1]) * 60 + Number(m[2])) : 100000;
+}
+// セル値を「HH:mm」表示へ（シートが時刻(Date)に自動変換した分の救済）
+function schedTimeStr_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone() || 'Asia/Tokyo', 'HH:mm');
+  return String(v == null ? '' : v);
 }
 // 日付シートを取得（無ければヘッダ付きで新規作成）
 function ensureScheduleSheet_(date) {
@@ -361,14 +433,15 @@ function ensureScheduleSheet_(date) {
   }
   return sh;
 }
-// データ行を時間順に並べ直す（時間なしは元の順のまま末尾）
+// データ行を時間順に並べ直す（時間なしは元の順のまま末尾）。時間列は文字列に統一。
 function sortScheduleSheet_(sh) {
   const last = sh.getLastRow();
   if (last < 3) return;
   const rows = sh.getRange(2, 1, last - 1, 5).getValues();
   const idx = rows.map(function (r, i) { return { r: r, k: schedTimeKey_(r[0]), i: i }; });
   idx.sort(function (a, b) { return (a.k - b.k) || (a.i - b.i); });
-  sh.getRange(2, 1, rows.length, 5).setValues(idx.map(function (x) { return x.r; }));
+  const out = idx.map(function (x) { x.r[0] = schedTimeStr_(x.r[0]); return x.r; });
+  sh.getRange(2, 1, out.length, 5).setNumberFormat('@').setValues(out);
 }
 // 1行を編集（時間・予定・メモ）。完了/linkはそのまま。編集後は時間順に整列。
 function updateScheduleRow(date, sheetRow, time, title, memo) {
@@ -377,7 +450,8 @@ function updateScheduleRow(date, sheetRow, time, title, memo) {
   return withLock_(function () {
     const sh = getScheduleSS_().getSheetByName(date);
     if (sh && sheetRow >= 2 && sheetRow <= sh.getLastRow()) {
-      sh.getRange(sheetRow, 1, 1, 3).setValues([[String(time || ''), String(title || ''), String(memo || '')]]);
+      sh.getRange(sheetRow, 1, 1, 3).setNumberFormat('@')
+        .setValues([[String(time || ''), String(title || ''), String(memo || '')]]);
       sortScheduleSheet_(sh);
     }
     return getSchedule(date);
@@ -388,7 +462,9 @@ function addScheduleRow(date, time, title, memo) {
   date = date || todayStr_();
   return withLock_(function () {
     const sh = ensureScheduleSheet_(date);
-    sh.appendRow([String(time || ''), String(title || ''), String(memo || ''), '', '']);
+    const r = sh.getLastRow() + 1;
+    sh.getRange(r, 1, 1, 5).setNumberFormat('@')
+      .setValues([[String(time || ''), String(title || ''), String(memo || ''), '', '']]);
     sortScheduleSheet_(sh);
     return getSchedule(date);
   });
