@@ -201,7 +201,9 @@
   .dctx{display:flex;align-items:center;gap:6px;padding:5px 2px 2px;color:var(--sub);font-size:13px}
   .dctx.s0{font-family:'Shippori Mincho',serif;font-size:14.5px;color:#6f675e;margin-top:4px}
   .dchk{display:flex;align-items:flex-start;gap:9px;padding:6px 2px}
-  .dchk .ico{flex:none;margin-top:2px;font-size:14px;line-height:1}
+  .dchk .ico{flex:none;margin-top:2px;font-size:14px;line-height:1;border:none;background:transparent;
+    padding:0 2px;cursor:pointer;border-radius:6px;transition:transform .15s}
+  .dchk .ico:hover{transform:scale(1.2);background:#efeae2}
   .dchk .ico.daily{color:var(--gold)} .dchk .ico.today{color:var(--rose)}
   .dchk span.t{flex:1;word-break:break-word}
   .dchk.done span.t{color:var(--sub);text-decoration:line-through;text-decoration-color:var(--line)}
@@ -1162,10 +1164,22 @@ function renderDailyTree(tabId,parentId,depth){
 }
 function dailyCheckRow(n){
   var on=dailyDone(n);
-  var ico=n.daily?'<span class="ico daily">'+markIcon('daily',true)+'</span>':'<span class="ico today">'+markIcon('today',true)+'</span>';
+  var kind=n.daily?'daily':'today';
+  var ico='<button class="ico '+kind+'" title="タップでマークを外す（リストから外れます）" onclick="unmarkNode(\''+jsq(n.id)+'\')">'+markIcon(kind,true)+'</button>';
   return '<div class="dchk'+(on?' done':'')+'">'+
     '<div class="check'+(on?' on':'')+'" onclick="toggleDailyCheck(\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>'+
     ico+'<span class="t">'+linkify(n.text)+'</span></div>';
+}
+// ★/❀ アイコンをタップ：マークを外す（今日の予定・今日のチェックの両方から使える）
+function unmarkNode(id){
+  var n=byId(id); if(!n) return;
+  snap();
+  var was=n.daily?'★定期':'❀その日';
+  n.daily=false; n.today=false;
+  renderView();
+  call('updateNode',[id,'daily',false]).catch(failNote);
+  call('updateNode',[id,'today',false]).catch(failNote);
+  toast(was+'のマークを外しました（「戻る」で戻せます）');
 }
 function toggleDailyCheck(id){
   var n=byId(id);if(!n)return;
