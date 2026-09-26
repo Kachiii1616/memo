@@ -326,7 +326,16 @@ function schedHelpers_() {
     if (isKaimono(n)) return 3;
     return 10 + areaRank(n);
   }
-  return { nodes: nodes, tabs: tabs, tabName: tabName, hasKids: hasKids,
+  // 所要時間の目安（分）：連絡・確認・捨てる・探す など30分で終わりそうなものは30、それ以外は60
+  function duration(n) {
+    const t = String(n.text || '');
+    if (/チェック|確認/.test(t)) return 30;
+    if (/衣替え|大掃除|買い出し|料理|作り置き|整理|片付け|練習|撮影|編集|作成|まとめ|調べ|勉強|お出かけ|病院|通院/.test(t)) return 60;
+    if (isRenraku(n)) return 30;
+    if (/連絡|電話|メール|LINE|返信|予約|申込|申し込|問い合わせ|確認|チェック|捨て|探す|探し|支払|振込|振り込|注文|解約|登録|記入|提出|出す|交換|充電|洗濯|ゴミ|拭|ポチ/.test(t)) return 30;
+    return 60;
+  }
+  return { nodes: nodes, tabs: tabs, tabName: tabName, hasKids: hasKids, duration: duration,
     isKaji: isKaji, isRenraku: isRenraku, hasDeadline: hasDeadline,
     isKaimono: isKaimono, isOdekake: isOdekake, isWork: isWork, rank: rank };
 }
@@ -341,12 +350,10 @@ function autoPickTasks_() {
   const wd = now.getDay();
   const weekday = (wd >= 1 && wd <= 5);
 
-  let startH = Math.ceil(hour); if (startH < 7) startH = 7;
-  const slots = 22 - startH;                 // 今から22時までの1時間枠
-  if (slots <= 0) return [];
-  const marked = H.nodes.filter(function (n) { return n.today && !H.hasKids[n.id]; }).length;
-  const need = slots - marked;               // マーク済みで埋まらない残り枠のぶんだけ
-  if (need <= 0) return [];
+  let startM = Math.ceil((now.getHours() * 60 + now.getMinutes()) / 30) * 30; if (startM < 7 * 60) startM = 7 * 60;
+  let left = 22 * 60 - startM - (startM < 13 * 60 ? 60 : 0);   // 今から22時までの残り分（昼休憩ぶんを除く）
+  H.nodes.forEach(function (n) { if (n.today && !H.hasKids[n.id]) left -= H.duration(n); });  // マーク済みの所要時間
+  if (left <= 0) return [];
 
   function doableNow(n) {
     if (H.isRenraku(n)) return weekday && hour >= 9 && hour < 17;
@@ -360,7 +367,8 @@ function autoPickTasks_() {
       && String(n.text || '').trim() && doableNow(n);
   });
   cand.sort(function (a, b) { const ra = H.rank(a), rb = H.rank(b); if (ra !== rb) return ra - rb; return (a.order || 0) - (b.order || 0); });
-  const picked = cand.slice(0, need);
+  const picked = [];
+  cand.forEach(function (n) { const d = H.duration(n); if (d <= left) { picked.push(n); left -= d; } });
   if (picked.length) {                       // ❀（その日）列を一括ON
     const sh = nodeSheet_();
     const v = sh.getDataRange().getValues();
@@ -380,18 +388,22 @@ function buildSchedule_(opts) {
 
   const now = new Date();
   let mins = now.getHours() * 60 + now.getMinutes();
-  mins = Math.ceil(mins / 60) * 60; // 次の1時間ちょうどに丸め（1時間ごとの枠）
+  mins = Math.ceil(mins / 30) * 30; // 次の30分ちょうどに丸め
   if (mins < 7 * 60) mins = 7 * 60;  // 早朝は7:00スタート
   const rows = [['時間', '予定', 'メモ', '完了', 'link']];
+  let lunch = false;
   tasks.forEach(function (n) {
     if (mins >= 22 * 60) return; // 22時以降は入れない
-    if (mins === 12 * 60) { rows.push(['12:00', '昼食・休憩', '', '', '']); mins = 13 * 60; }
+    if (!lunch && mins >= 12 * 60 && mins < 13 * 60) { rows.push([mins === 12 * 60 ? '12:00' : '12:30', '昼食・休憩', '', '', '']); mins = 13 * 60; }
+    if (mins >= 12 * 60) lunch = true;
     const hh = Math.floor(mins / 60), mm = mins % 60;
     const time = (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
     const tags = [H.tabName[n.tab] || ''];
     if (H.isKaji(n)) tags.push('家事'); else if (H.isRenraku(n)) tags.push('連絡'); else if (H.hasDeadline(n)) tags.push('期限'); else if (H.isKaimono(n)) tags.push('買い物');
+    const dur = Math.min(slot, H.duration(n)); // 30分で終わりそうなものは30分
+    tags.push(dur + '分');
     rows.push([time, n.text, tags.filter(Boolean).join(' / '), '', '']);
-    mins += slot;
+    mins += dur;
   });
   if (rows.length === 1) rows.push(['—', '今日の ❀ 項目がありません', 'まず項目に ❀ を付けてください', '', '']);
 

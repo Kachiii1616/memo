@@ -136,6 +136,13 @@
   .schslot:first-child{border-top:none}
   .schslot .schtime{padding-top:0;color:#cfc7b9}
   .schslot:hover{color:var(--accent)} .schslot:hover .schtime{color:var(--accent)}
+  .schslot.half{padding-left:14px}
+  .schplus{flex:none;border:1px solid var(--line);background:var(--paper2);color:var(--sub);cursor:pointer;
+    font-size:11px;padding:2px 8px;border-radius:8px;line-height:1.3}
+  .schplus:hover{border-color:var(--accent);color:var(--ink)}
+  .schaddrow{display:block;width:100%;border:1px dashed var(--line);background:transparent;color:var(--sub);cursor:pointer;
+    font-size:12px;padding:6px;margin:4px 0;border-radius:8px}
+  .schaddrow:hover{border-color:var(--accent);color:var(--ink)}
   .schsub{font-family:'Shippori Mincho',serif;font-size:14px;color:#8a7f72;margin:20px 0 4px;padding-top:14px;border-top:1px dashed #e3dccf}
   .schtitle a,.schmemo a{color:var(--accent)}
   /* 選択ハイライト */
@@ -693,7 +700,7 @@ function doMakeSchedule(){
   call('generateSchedule',[{date:STATE.today, slot:60}]).then(function(d){
     STATE.schedule=d; STATE.scheduleDate=(d&&d.date)||STATE.today;
     if(STATE.active===SCHEDULE) renderSchedule();
-    toast('今日の予定を立てました（1時間ごと）');
+    toast('今日の予定を立てました（30分で済むものは30分）');
   }).catch(failNote);
 }
 // 🎯 リストから「今からできること」を自動で選んで❀を付け、そのまま予定を作成
@@ -795,7 +802,7 @@ function renderSchedule(){
     html+='<div class="schsub" style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:8px">✦ 今日マークしたタスク'+
       (todayN?'<button class="tbulk" title="ダブルクリック（2回タップ）で確定" onclick="clearTodayMarksTap()" ondblclick="event.preventDefault()">'+markIcon('today',true)+' 全部外す（'+todayN+'）</button>':'')+'</div>';
     html+='<div class="shoprow" style="margin-top:4px"><button class="shopopen" onclick="makeSchedule()">🪄 このリストから予定を自動作成</button></div>'+
-      '<div class="shophint" style="margin:2px 2px 6px">項目名をタップ＝時間を選んで予定に入れる ／ 🪄＝下の ❀ 全部を1時間ごとに並べて予定表を作り直す</div>';
+      '<div class="shophint" style="margin:2px 2px 6px">項目名をタップ＝時間を選んで予定に入れる ／ 🪄＝下の ❀ 全部を並べて予定表を作り直す（30分で済むものは30分・ほかは1時間）</div>';
     STATE.tabs.forEach(function(t){
       if(!STATE.nodes.some(function(n){return n.tab===t.id&&isFlagged(n);}))return;
       html+='<div class="group-label">'+esc(t.name)+'</div>'+renderDailyTree(t.id,'',0);
@@ -805,16 +812,20 @@ function renderSchedule(){
   html+='<div class="schsub">🕐 時間割</div>';
   var timed={}, untimed=[];
   blocks.forEach(function(b,bi){ b.bi=bi; var h=schHour(b.time); if(h==null) untimed.push(b); else (timed[h]=timed[h]||[]).push(b); });
-  var hs=7, he=22;
+  var ex=schExtra(), hs=Math.min(7,ex.hs), he=Math.max(22,ex.he);
   Object.keys(timed).forEach(function(k){ k=+k; if(k<hs)hs=k; if(k>he)he=k; });
   html+='<div class="schlist">';
+  if(hs>0) html+='<button class="schaddrow" onclick="schAddHour('+(hs-1)+')">＋ '+pad2(hs-1)+':00 の欄を追加</button>';
   for(var h=hs;h<=he;h++){
-    if(timed[h]) timed[h].forEach(function(b){ html+=schRowHtml(b); });
-    else html+='<div class="schslot" onclick="editSchedNew(\''+pad2(h)+':00\')"><div class="schtime">'+pad2(h)+':00</div><div>＋ 予定を書く</div></div>';
+    var list=timed[h]||[], hasHalf=list.some(function(b){return /:30/.test(b.time);}), halfOpen=ex.half.indexOf(h)>=0;
+    if(list.length) list.forEach(function(b){ html+=schRowHtml(b); });
+    else html+=schSlotHtml(h,'00',!hasHalf&&!halfOpen);
+    if(halfOpen&&!hasHalf) html+=schSlotHtml(h,'30',false);
   }
+  if(he<23) html+='<button class="schaddrow" onclick="schAddHour('+(he+1)+')">＋ '+pad2(he+1)+':00 の欄を追加</button>';
   untimed.forEach(function(b){ html+=schRowHtml(b); });
   html+='</div>';
-  html+='<div class="hint">○＝完了（memoの該当タスクにも取り消し線）／<b>✎＝あとから編集</b>（時間・内容・メモ・削除）／<b>空いている時間をタップ＝予定を書く</b>。</div>';
+  html+='<div class="hint">○＝完了（memoの該当タスクにも取り消し線）／<b>✎＝あとから編集</b>（時間・内容・メモ・削除）／<b>空いている時間をタップ＝予定を書く</b>／<b>＋30分</b>＝その時間の30分の欄を追加／<b>＋ 〇〇:00 の欄を追加</b>＝朝・夜の時間を増やす。</div>';
   html+='</div>';
   v.innerHTML=html;
 }
@@ -830,6 +841,23 @@ function schRowHtml(b){
 }
 // 時刻文字列から「時」を取り出す（読めなければnull）
 function schHour(t){ var m=String(t||'').match(/^(\d{1,2})[:：](\d{2})/); return m?+m[1]:null; }
+// 空き枠1行。plus=true なら右端に「＋」（その時間の30分の欄を追加）
+function schSlotHtml(h,mm,plus){
+  var t=pad2(h)+':'+mm;
+  return '<div class="schslot'+(mm==='30'?' half':'')+'" onclick="editSchedNew(\''+t+'\')"><div class="schtime">'+t+'</div><div style="flex:1;min-width:0;white-space:nowrap;text-align:left">＋ 予定を書く</div>'+
+    (plus?'<button class="schplus" title="'+pad2(h)+':30 の欄を追加" onclick="event.stopPropagation();schAddHalf('+h+')">＋30分</button>':'')+'</div>';
+}
+// 追加した時間の欄（見た目だけ・この端末に保存）：hs/he＝表示範囲、half＝:30欄を出す時
+function schExtra(){
+  var date=STATE.scheduleDate||STATE.today;
+  if(STATE._schExtra&&STATE._schExtra.date===date) return {hs:STATE._schExtra.hs,he:STATE._schExtra.he,half:STATE._schExtra.half.slice()};
+  var d={hs:7,he:22,half:[]};
+  try{ var v=JSON.parse(localStorage.getItem('memo.schExtra')||'null'); if(v&&v.date===(STATE.scheduleDate||STATE.today)) d={hs:v.hs,he:v.he,half:v.half||[]}; }catch(e){}
+  return d;
+}
+function schSaveExtra(d){ d.date=STATE.scheduleDate||STATE.today; STATE._schExtra=d; try{ localStorage.setItem('memo.schExtra',JSON.stringify(d)); }catch(e){} renderSchedule(); }
+function schAddHalf(h){ var d=schExtra(); if(d.half.indexOf(h)<0) d.half.push(h); schSaveExtra(d); }
+function schAddHour(h){ var d=schExtra(); if(h<d.hs) d.hs=Math.max(0,h); if(h>d.he) d.he=Math.min(23,h); schSaveExtra(d); }
 // ✎から：既存の予定を編集
 function editSched(bi){ var b=(STATE.schedBlocks||[])[bi]; if(b) openScheduleEdit(b.sheetRow,b.time,b.title,b.memo); }
 // ❀リストの項目をタップ：時間を選んで予定に組み込む（初期値＝今より後で空いている30分枠）
