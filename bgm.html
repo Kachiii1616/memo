@@ -1,0 +1,558 @@
+<!-- =====================================================================
+  おやすみBGM（日記帳アプリ Journal と共通の仕組み。doGet で </body> の直前に差し込む）
+  ・音は Web Audio でその場で生成（音源ファイル・通信なし）
+  ・?bgm=曲.音量.終了時刻.ことば を受け取ると、最初のタップで続きから再生
+  ・Journal へ戻るときは window.MemoBGM.handoff() を URL に付ける
+  ※元のコードは Journal の index.html（BGM セクション）。直すときは両方そろえる
+===================================================================== -->
+<style>
+  .bgm-fab{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(14px,env(safe-area-inset-bottom));z-index:900;
+    height:44px;min-width:44px;padding:0 12px;border-radius:999px;border:none;cursor:pointer;
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:14px;
+    background:#fff;color:#5a4f47;box-shadow:inset 0 0 0 1px #ded7cc,0 4px 12px rgba(90,70,50,.15)}
+  .bgm-fab svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .bgm-fab.playing svg{animation:bgmPulse 2.4s ease-in-out infinite}
+  @keyframes bgmPulse{50%{transform:scale(1.12)}}
+  body.theme-antique .bgm-fab{background:#7d93ae;color:#f7f1e6;box-shadow:0 4px 14px rgba(80,70,55,.25);font-family:'IM Fell English',serif}
+  body.theme-summer .bgm-fab{background:#fff;color:#2e3d6b;box-shadow:inset 0 0 0 1.5px #2e3d6b,0 4px 12px rgba(224,104,90,.2);font-family:'Caveat',cursive;font-weight:700;font-size:17px}
+
+  .bgm-veil{position:fixed;inset:0;z-index:950;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(40,35,30,.45)}
+  .bgm-veil.on{display:flex}
+  body.theme-summer .bgm-veil{background:rgba(245,203,193,.55)}
+  .bgm-card{--b-ink:#3c3a36;--b-soft:#7a7068;--b-rule:rgba(90,70,50,.16);--b-accent:#8c7a6b;--b-accent-fg:#fff;
+    width:min(100%,420px);max-height:calc(100vh - 32px);overflow:auto;padding:22px 22px 18px;border-radius:12px;background:#fbf9f5;color:var(--b-ink);
+    box-shadow:0 18px 40px rgba(40,30,20,.25);font-family:inherit}
+  body.theme-antique .bgm-card{--b-ink:#2a2a33;--b-soft:#5c6177;--b-rule:rgba(92,110,138,.3);--b-accent:#6c819c;--b-accent-fg:#f7f1e6;background:#f3ead6;border-radius:3px}
+  body.theme-summer .bgm-card{--b-ink:#2e3d6b;--b-soft:#5b6892;--b-rule:rgba(46,61,107,.22);--b-accent:#2e3d6b;--b-accent-fg:#fffcf4;background:#fffcf4;border-radius:16px;box-shadow:inset 0 0 0 1.5px #2e3d6b,6px 6px 0 #bfe3d3}
+  .bgm-card h3{margin:0;text-align:center;font-size:22px;font-weight:600}
+  body.theme-antique .bgm-card h3{font-family:'IM Fell English',serif;font-style:italic;font-weight:400;font-size:26px}
+  body.theme-summer .bgm-card h3{font-family:'Playfair Display',serif;font-weight:800}
+  .bgm-card>p{margin:4px 0 0;text-align:center;font-size:14px;color:var(--b-soft)}
+  .bgm-list{display:grid;gap:8px;margin:14px 0 12px;max-height:min(44vh,420px);overflow-y:auto;padding:2px}
+  .bgm-group{font-size:12px;letter-spacing:.2em;color:var(--b-soft);margin:6px 2px -2px}
+  .bgm-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border:none;border-radius:8px;text-align:left;cursor:pointer;
+    font:inherit;color:inherit;box-shadow:inset 0 0 0 1px var(--b-rule);background:rgba(255,255,255,.4)}
+  .bgm-item b{display:block;font-weight:600;font-size:16px;color:var(--b-ink)}
+  .bgm-item small{display:block;font-size:12.5px;color:var(--b-soft)}
+  .bgm-item i{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:17px;background:var(--b-rule)}
+  .bgm-item.on{box-shadow:inset 0 0 0 2px var(--b-accent);background:rgba(255,255,255,.75)}
+  .bgm-item.on i{background:var(--b-accent);color:var(--b-accent-fg)}
+  .bgm-row{display:flex;align-items:center;gap:12px;margin-top:12px;font-size:14px;color:var(--b-soft)}
+  .bgm-row>span:first-child{flex:none;width:70px}
+  .bgm-row input[type=range]{flex:1;accent-color:var(--b-accent)}
+  .bgm-chips{display:flex;gap:6px;flex-wrap:wrap}
+  .bgm-chip{padding:6px 13px;border:none;border-radius:999px;font:inherit;font-size:14px;cursor:pointer;background:transparent;box-shadow:inset 0 0 0 1px var(--b-rule);color:var(--b-ink)}
+  .bgm-chip.on{background:var(--b-accent);color:var(--b-accent-fg);box-shadow:none}
+  .bgm-left{text-align:center;font-size:13px;color:var(--b-soft);margin-top:10px;min-height:1.2em}
+  .bgm-actions{display:flex;gap:10px;justify-content:center;margin-top:14px}
+  .bgm-btn{padding:9px 22px;border:none;border-radius:999px;font:inherit;font-size:16px;cursor:pointer;background:transparent;color:var(--b-ink);box-shadow:inset 0 0 0 1px var(--b-rule)}
+  .bgm-btn.primary{background:var(--b-accent);color:var(--b-accent-fg);box-shadow:none}
+
+  .bgm-toast,.bgm-resume{position:fixed;left:50%;bottom:74px;transform:translate(-50%,16px);opacity:0;pointer-events:none;z-index:960;
+    padding:10px 18px;border-radius:999px;font-size:14.5px;transition:all .3s ease;max-width:calc(100vw - 32px);text-align:center;
+    background:#5a4f47;color:#fff;box-shadow:0 6px 18px rgba(40,30,20,.25)}
+  .bgm-resume{white-space:nowrap;font-size:13.5px}
+  .bgm-toast.on,.bgm-resume.on{opacity:1;transform:translate(-50%,0)}
+  body.theme-antique .bgm-toast,body.theme-antique .bgm-resume{background:#6c819c;color:#f7f1e6;font-family:'IM Fell English','Shippori Mincho',serif}
+  body.theme-summer .bgm-toast,body.theme-summer .bgm-resume{background:#2e3d6b}
+</style>
+
+<button class="bgm-fab" id="bgmFab" title="おやすみBGM"><svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg><span id="bgmFabTxt"></span></button>
+<div class="bgm-veil" id="bgmVeil">
+  <div class="bgm-card">
+    <h3>おやすみBGM</h3>
+    <p>安眠のための音。選ぶとすぐに流れます。</p>
+    <div class="bgm-list" id="bgmList"></div>
+    <div class="bgm-row"><span>音量</span><input type="range" id="bgmVol" min="0" max="100" step="1"></div>
+    <div class="bgm-row"><span>タイマー</span><div class="bgm-chips" id="bgmTimer"></div></div>
+    <div class="bgm-row"><span>ことば</span><div class="bgm-chips" id="bgmWords"></div></div>
+    <div class="bgm-left" id="bgmLeft"></div>
+    <div class="bgm-actions">
+      <button class="bgm-btn" id="bgmClose">Close</button>
+      <button class="bgm-btn primary" id="bgmPlay">Play</button>
+    </div>
+  </div>
+</div>
+<div class="bgm-resume" id="bgmResume">♪ 画面にふれると、BGMの続きが流れます</div>
+<div class="bgm-toast" id="bgmToast"></div>
+
+<script>
+(function () {
+'use strict';
+var $ = function (id) { return document.getElementById(id); };
+function pad(n) { return (n < 10 ? '0' : '') + n; }
+function errMsg(e) { return String(e && e.message || e); }
+function store(k, v) { try { if (v === undefined) return localStorage.getItem('memo_' + k); localStorage.setItem('memo_' + k, v); } catch (e) { return null; } }
+var toastTimer;
+function toast(msg) {
+  var t = $('bgmToast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('on'); }, 3200);
+}
+
+/* ================================================================
+ * BGM：安眠のための音を Web Audio でその場で生成する
+ *   （著作権のある音源を使わず、通信もしない。iPad のマナーモードでも鳴るよう audioSession=playback）
+ *   タイマー終了の30秒前からゆっくりフェードアウト。
+ * ================================================================ */
+var BGM_TRACKS = [
+  { id: 'piano',    group: '音楽', icon: '♩', name: 'ピアノ',     sub: 'あたたかい長調。今日の自分をねぎらう曲' },
+  { id: 'guitar',   group: '音楽', icon: '♬', name: 'ギター',     sub: 'アコースティックのやさしい指弾き' },
+  { id: 'harp',     group: '音楽', icon: '✧', name: 'ハープ',     sub: 'きらめく分散和音で心がほどける' },
+  { id: 'musicbox', group: '音楽', icon: '♪', name: 'オルゴール', sub: 'ゆっくり響く、やさしい音色' },
+  { id: 'pad',      group: '音楽', icon: '☾', name: 'ヒーリング', sub: '穏やかな和音がゆらぐアンビエント' },
+  { id: 'rain',     group: '自然の音', icon: '☂', name: '雨音',   sub: '静かに降る夜の雨' },
+  { id: 'waves',    group: '自然の音', icon: '〰', name: '波の音', sub: '寄せては返すゆったりした波' },
+  { id: 'brown',    group: '自然の音', icon: '●', name: 'ブラウンノイズ', sub: '低くやわらかな環境音' }
+];
+var BGM_TIMERS = [[0, 'なし'], [15, '15分'], [30, '30分'], [60, '1時間']];
+var bgm = {
+  track: store('bgmTrack') || 'musicbox',
+  vol: store('bgmVol') != null ? +store('bgmVol') : 60,
+  timer: store('bgmTimer') != null ? +store('bgmTimer') : 60,
+  words: store('bgmWords') === '1',
+  ctx: null, master: null, reverb: null, voice: null, playing: false, endAt: 0, fading: false
+};
+
+function bgmCtx() {
+  if (!bgm.ctx) {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) throw new Error('この端末では音声を再生できません');
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+    bgm.ctx = new AC();
+    bgm.master = bgm.ctx.createGain(); bgm.master.gain.value = 0;
+    bgm.master.connect(bgm.ctx.destination);
+    // 残響（生成したインパルス応答）
+    var c = bgm.ctx, len = c.sampleRate * 3.5, ir = c.createBuffer(2, len, c.sampleRate);
+    for (var ch = 0; ch < 2; ch++) { var d = ir.getChannelData(ch); for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6); }
+    bgm.reverb = c.createConvolver(); bgm.reverb.buffer = ir;
+    bgm.reverb.connect(bgm.master);
+  }
+  if (bgm.ctx.state === 'suspended') bgm.ctx.resume();
+  return bgm.ctx;
+}
+function noiseBuf(c, brown) {
+  var len = c.sampleRate * 8, b = c.createBuffer(2, len, c.sampleRate);
+  for (var ch = 0; ch < 2; ch++) {
+    var d = b.getChannelData(ch), last = 0;
+    for (var i = 0; i < len; i++) {
+      var w = Math.random() * 2 - 1;
+      if (brown) { last = (last + .02 * w) / 1.02; d[i] = last * 3.2; } else d[i] = w * .5;
+    }
+  }
+  return b;
+}
+function noiseSrc(c, brown) { var s = c.createBufferSource(); s.buffer = noiseBuf(c, brown); s.loop = true; s.start(); return s; }
+function filt(c, type, f, q) { var n = c.createBiquadFilter(); n.type = type; n.frequency.value = f; if (q) n.Q.value = q; return n; }
+function chain() { for (var i = 0; i < arguments.length - 1; i++) arguments[i].connect(arguments[i + 1]); return arguments[arguments.length - 1]; }
+
+/* 各トラックは { out: GainNode, stop() } を返す */
+/* ピアノの音：倍音を重ね、鳴り始めは明るく、だんだん丸くなる */
+function pianoNote(c, dest, t, f, v, dur) {
+  var lp = c.createBiquadFilter(), g = c.createGain();
+  lp.type = 'lowpass'; lp.Q.value = .4;
+  lp.frequency.setValueAtTime(Math.min(9000, f * 9), t);
+  lp.frequency.exponentialRampToValueAtTime(Math.max(f * 1.6, 320), t + 1.6);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(v, t + .006);
+  g.gain.exponentialRampToValueAtTime(v * .32, t + .4);
+  g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  lp.connect(g); g.connect(dest);
+  [[1, .6], [2, .26], [3, .12], [4, .07], [5, .035], [6, .02]].forEach(function (pt) {
+    var o = c.createOscillator(), pg = c.createGain();
+    o.frequency.value = f * pt[0] * (1 + .00035 * pt[0] * pt[0]);   // 弦らしいわずかな倍音のずれ
+    pg.gain.value = pt[1];
+    o.connect(pg); pg.connect(lp);
+    o.start(t); o.stop(t + dur + .1);
+  });
+}
+/* 撥弦の音（Karplus-Strong 法）：ギター・ハープ用。音ごとにバッファを作ってキャッシュ */
+var ksCache = {};
+function ksBuffer(c, f, dur, keep, warm) {
+  var key = f.toFixed(2) + ':' + keep + ':' + warm;
+  if (ksCache[key]) return ksCache[key];
+  var sr = c.sampleRate, N = Math.max(2, Math.round(sr / f)), len = Math.floor(sr * dur);
+  var b = c.createBuffer(1, len, sr), d = b.getChannelData(0), ring = new Float32Array(N), prev = 0;
+  for (var i = 0; i < N; i++) { var r = Math.random() * 2 - 1; prev = warm * prev + (1 - warm) * r; ring[i] = prev; }
+  var idx = 0;
+  for (i = 0; i < len; i++) {
+    var cur = ring[idx], nx = ring[(idx + 1) % N];
+    ring[idx] = (cur + nx) * .5 * keep;
+    d[i] = cur;
+    idx = (idx + 1) % N;
+  }
+  return (ksCache[key] = b);
+}
+function pluck(c, dest, t, f, v, keep, warm) {
+  var s = c.createBufferSource(), g = c.createGain();
+  s.buffer = ksBuffer(c, f, 3.2, keep, warm);
+  g.gain.value = v;
+  s.connect(g); g.connect(dest);
+  s.start(t);
+}
+/* 小節単位で先読みして鳴らす共通スケジューラ */
+function barLoop(c, barSec, playBar) {
+  var alive = true, next = c.currentTime + .4, bar = 0;
+  function tick() {
+    if (!alive) return;
+    while (next < c.currentTime + barSec + 1) { playBar(next, bar++); next += barSec; }
+    setTimeout(tick, 1000);
+  }
+  tick();
+  return function () { alive = false; };
+}
+function musicBus(c, out, dryGain, wetGain, lpFreq) {
+  var bus = c.createGain(), lp = filt(c, 'lowpass', lpFreq || 6000);
+  var dry = c.createGain(); dry.gain.value = dryGain;
+  var wet = c.createGain(); wet.gain.value = wetGain;
+  bus.connect(lp); lp.connect(dry); dry.connect(out); lp.connect(wet); wet.connect(bgm.reverb);
+  return bus;
+}
+
+var BGM_BUILD = {
+  /* ピアノ：C メジャー I–V–vi–IV（Cmaj9 → G/B → Am7 → Fmaj7）。60BPM、ベース＋分散和音＋ときどき旋律 */
+  piano: function (c) {
+    var out = c.createGain(), bus = musicBus(c, out, .7, .45, 7000);
+    var prog = [
+      { bass: 130.81, tones: [261.63, 329.63, 392.0, 493.88, 587.33] },
+      { bass: 123.47, tones: [293.66, 392.0, 493.88, 587.33] },
+      { bass: 110.0,  tones: [261.63, 329.63, 440.0, 493.88] },
+      { bass: 87.31,  tones: [261.63, 349.23, 440.0, 659.25] }
+    ];
+    var melody = [523.25, 587.33, 659.25, 783.99, 880.0];
+    var stop = barLoop(c, 4, function (t, n) {
+      var ch = prog[n % 4];
+      pianoNote(c, bus, t, ch.bass, .22, 4.5);
+      pianoNote(c, bus, t, ch.bass * 1.5, .1, 4);
+      ch.tones.forEach(function (f, k) { pianoNote(c, bus, t + .5 + k * .5, f, .11 + Math.random() * .03, 3.4); });
+      [2.5, 3, 3.5].forEach(function (b) {
+        if (Math.random() < .45) pianoNote(c, bus, t + b, melody[Math.floor(Math.random() * melody.length)], .09, 2.6);
+      });
+    });
+    return { out: out, stop: stop };
+  },
+  /* ギター：G メジャー I–V–vi–IV（G → D → Em → C）の指弾き。70BPM の8分音符 */
+  guitar: function (c) {
+    var out = c.createGain(), bus = musicBus(c, out, .8, .3, 4200);
+    var shapes = [
+      [98.0, 146.83, 196.0, 246.94, 293.66, 392.0],
+      [146.83, 220.0, 293.66, 369.99, 440.0, 587.33],
+      [82.41, 123.47, 164.81, 196.0, 246.94, 329.63],
+      [130.81, 164.81, 196.0, 261.63, 329.63, 392.0]
+    ];
+    var eighth = 60 / 70 / 2, pattern = [0, 2, 3, 4, 1, 3, 4, 5];
+    var stop = barLoop(c, eighth * 8, function (t, n) {
+      var sh = shapes[n % 4];
+      pattern.forEach(function (si, k) {
+        var f = sh[Math.min(si, sh.length - 1)];
+        pluck(c, bus, t + k * eighth + Math.random() * .015, f, k === 0 || k === 4 ? .5 : .32, f < 150 ? .9985 : .997, .55);
+      });
+    });
+    return { out: out, stop: stop };
+  },
+  /* ハープ：F メジャー I–vi–IV–V を上がって下りる分散和音 */
+  harp: function (c) {
+    var out = c.createGain(), bus = musicBus(c, out, .55, .7, 8000);
+    var prog = [
+      [174.61, 220.0, 261.63, 349.23, 440.0, 523.25, 698.46],
+      [146.83, 220.0, 293.66, 349.23, 440.0, 587.33, 698.46],
+      [116.54, 174.61, 233.08, 293.66, 349.23, 466.16, 587.33],
+      [130.81, 196.0, 261.63, 329.63, 392.0, 523.25, 659.25]
+    ];
+    var step = .32;
+    var stop = barLoop(c, step * 14, function (t, n) {
+      var ch = prog[n % 4], seq = ch.concat(ch.slice(0, -1).reverse());
+      seq.slice(0, 13).forEach(function (f, k) { pluck(c, bus, t + k * step, f, .3 - k * .008, .9988, .2); });
+    });
+    return { out: out, stop: stop };
+  },
+  rain: function (c) {
+    var out = c.createGain(), sources = [];
+    var a = noiseSrc(c, false), b = noiseSrc(c, true);
+    sources.push(a, b);
+    var ga = c.createGain(); ga.gain.value = .5;
+    var gb = c.createGain(); gb.gain.value = .55;
+    chain(a, filt(c, 'highpass', 400), filt(c, 'lowpass', 5200), ga, out);
+    chain(b, filt(c, 'lowpass', 700), gb, out);
+    var lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = .07; lg.gain.value = .12;
+    chain(lfo, lg, ga.gain); lfo.start(); sources.push(lfo);
+    return { out: out, stop: function () { sources.forEach(function (s) { try { s.stop(); } catch (e) {} }); } };
+  },
+  brown: function (c) {
+    var out = c.createGain(), s = noiseSrc(c, true), g = c.createGain(); g.gain.value = .9;
+    chain(s, filt(c, 'lowpass', 520), g, out);
+    return { out: out, stop: function () { try { s.stop(); } catch (e) {} } };
+  },
+  waves: function (c) {
+    var out = c.createGain(), s = noiseSrc(c, true), lp = filt(c, 'lowpass', 500), g = c.createGain();
+    g.gain.value = .1; chain(s, lp, g, out);
+    var alive = true, next = c.currentTime + .1;
+    function schedule() {
+      if (!alive) return;
+      while (next < c.currentTime + 12) {
+        var dur = 7 + Math.random() * 4, peak = .55 + Math.random() * .35;
+        g.gain.setValueAtTime(.1, next);
+        g.gain.linearRampToValueAtTime(peak, next + dur * .42);
+        g.gain.linearRampToValueAtTime(.08, next + dur);
+        lp.frequency.setValueAtTime(380, next);
+        lp.frequency.linearRampToValueAtTime(1300 + Math.random() * 500, next + dur * .42);
+        lp.frequency.linearRampToValueAtTime(360, next + dur);
+        next += dur;
+      }
+      setTimeout(schedule, 4000);
+    }
+    schedule();
+    return { out: out, stop: function () { alive = false; try { s.stop(); } catch (e) {} } };
+  },
+  musicbox: function (c) {
+    var out = c.createGain(), alive = true, next = c.currentTime + .3;
+    var dry = c.createGain(); dry.gain.value = .55; dry.connect(out);
+    var wet = c.createGain(); wet.gain.value = .6; wet.connect(bgm.reverb);
+    var scale = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25, 783.99];   // Cペンタトニック
+    var lastIdx = 4;
+    function note(t, f, v) {
+      [[1, 1], [2, .28], [3.01, .08]].forEach(function (pt) {
+        var o = c.createOscillator(), g = c.createGain();
+        o.type = 'sine'; o.frequency.value = f * pt[0];
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(v * pt[1], t + .008);
+        g.gain.exponentialRampToValueAtTime(.0001, t + 2.8 / pt[0] + .6);
+        o.connect(g); g.connect(dry); g.connect(wet);
+        o.start(t); o.stop(t + 4);
+      });
+    }
+    function schedule() {
+      if (!alive) return;
+      while (next < c.currentTime + 4) {
+        lastIdx = Math.max(0, Math.min(scale.length - 1, lastIdx + [-2, -1, -1, 1, 1, 2, 0][Math.floor(Math.random() * 7)]));
+        note(next, scale[lastIdx], .16);
+        if (Math.random() < .25) note(next, scale[Math.max(0, lastIdx - 3)] / 2, .1);    // ときどき低い音を添える
+        next += .9 + Math.random() * 1.3;
+      }
+      setTimeout(schedule, 1500);
+    }
+    schedule();
+    return { out: out, stop: function () { alive = false; } };
+  },
+  pad: function (c) {
+    var out = c.createGain(), alive = true, voices = [];
+    var lp = filt(c, 'lowpass', 900); lp.connect(out);
+    var send = c.createGain(); send.gain.value = .7; lp.connect(send); send.connect(bgm.reverb);
+    var chords = [[130.81, 196.0, 246.94, 329.63], [110.0, 164.81, 261.63, 329.63], [87.31, 174.61, 220.0, 261.63], [98.0, 146.83, 246.94, 293.66]];
+    var ci = 0;
+    function play() {
+      if (!alive) return;
+      var t = c.currentTime, g = c.createGain();
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.09, t + 6);
+      g.connect(lp);
+      var oscs = [];
+      chords[ci % chords.length].forEach(function (f) {
+        [-5, 5].forEach(function (cent, k) {
+          var o = c.createOscillator(); o.type = k ? 'triangle' : 'sine';
+          o.frequency.value = f; o.detune.value = cent; o.connect(g); o.start(t); oscs.push(o);
+        });
+      });
+      voices.forEach(function (v) {                 // 前の和音はゆっくり消す
+        v.g.gain.cancelScheduledValues(t); v.g.gain.setValueAtTime(v.g.gain.value, t);
+        v.g.gain.linearRampToValueAtTime(0, t + 6);
+        v.oscs.forEach(function (o) { o.stop(t + 6.5); });
+      });
+      voices = [{ g: g, oscs: oscs }];
+      ci++;
+      setTimeout(play, 15000);
+    }
+    play();
+    return { out: out, stop: function () { alive = false; voices.forEach(function (v) { v.oscs.forEach(function (o) { try { o.stop(); } catch (e) {} }); }); } };
+  }
+};
+
+function bgmStart(track) {
+  var c;
+  try { c = bgmCtx(); } catch (e) { toast(errMsg(e)); return; }
+  bgmTeardown();
+  bgm.track = track; store('bgmTrack', track);
+  var v = BGM_BUILD[track](c);
+  v.out.connect(bgm.master);
+  bgm.voice = v;
+  var t = c.currentTime;
+  bgm.master.gain.cancelScheduledValues(t);
+  bgm.master.gain.setValueAtTime(bgm.master.gain.value, t);
+  bgm.master.gain.linearRampToValueAtTime(bgm.vol / 100, t + 2.5);
+  bgm.playing = true; bgm.fading = false;
+  bgm.endAt = bgm.timer ? Date.now() + bgm.timer * 60000 : 0;
+  if (bgm.words) { unlockSpeech(); wordsLoop(20000); }
+  bgmUI();
+}
+
+/* やさしい言葉：ときどき小さな声で読み上げ、画面にもそっと表示する（端末の読み上げ機能を使用） */
+var AFFIRMATIONS = [
+  '今日も一日、よくがんばったね。',
+  'あなたは、そのままで大丈夫。',
+  '小さな一歩も、ちゃんと前に進んでいるよ。',
+  '今日の自分に、ありがとう。',
+  'ゆっくり休んでいいんだよ。',
+  '明日はきっと、いい日になる。',
+  'あなたのやさしさは、ちゃんと届いている。',
+  'できたことを、ひとつ思い出してみよう。',
+  '深呼吸して、肩の力をぬいてね。',
+  'うまくいかない日があっても、あなたの価値は変わらない。',
+  'がんばった分だけ、ちゃんと休もう。',
+  'おやすみなさい。いい夢を。'
+];
+var wordsTimer = 0, lastWord = -1;
+function jaVoice() {
+  if (!window.speechSynthesis) return null;
+  var vs = speechSynthesis.getVoices().filter(function (v) { return /^ja/i.test(v.lang); });
+  return vs.filter(function (v) { return /Kyoko|O-ren|Hattori|Siri/i.test(v.name); })[0] || vs[0] || null;
+}
+function unlockSpeech() {                          // iOS はタップ操作の中で一度話させないと、以後の読み上げが出ない
+  try { if (window.speechSynthesis) { var u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } } catch (e) {}
+}
+function speakWord() {
+  if (!bgm.playing || !bgm.words || bgm.fading) return;
+  var i; do { i = Math.floor(Math.random() * AFFIRMATIONS.length); } while (i === lastWord && AFFIRMATIONS.length > 1);
+  lastWord = i;
+  var text = AFFIRMATIONS[i];
+  toast(text);
+  try {
+    if (!window.speechSynthesis) return;
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ja-JP'; u.rate = .82; u.pitch = 1; u.volume = Math.min(1, .35 + bgm.vol / 160);
+    var v = jaVoice(); if (v) u.voice = v;
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+function wordsLoop(firstMs) {
+  clearTimeout(wordsTimer);
+  wordsTimer = setTimeout(function next() {
+    speakWord();
+    if (bgm.playing && bgm.words) wordsTimer = setTimeout(next, 75000 + Math.random() * 45000);
+  }, firstMs);
+}
+function wordsStop() { clearTimeout(wordsTimer); try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {} }
+function bgmTeardown() {
+  if (!bgm.voice) return;
+  var v = bgm.voice; bgm.voice = null;
+  try { v.stop(); v.out.disconnect(); } catch (e) {}
+}
+function bgmStop(fadeSec) {
+  if (!bgm.playing) return;
+  bgm.playing = false; bgm.endAt = 0;
+  wordsStop();
+  var c = bgm.ctx, t = c.currentTime, v = bgm.voice;
+  bgm.master.gain.cancelScheduledValues(t);
+  bgm.master.gain.setValueAtTime(bgm.master.gain.value, t);
+  bgm.master.gain.linearRampToValueAtTime(0, t + (fadeSec || 1.2));
+  setTimeout(function () { if (!bgm.playing && bgm.voice === v) bgmTeardown(); }, (fadeSec || 1.2) * 1000 + 200);
+  bgmUI();
+}
+function fmtLeft(ms) { var s = Math.max(0, Math.ceil(ms / 1000)), m = Math.floor(s / 60); return m + ':' + pad(s % 60); }
+function bgmUI() {
+  var fab = $('bgmFab');
+  fab.classList.toggle('playing', bgm.playing);
+  $('bgmFabTxt').textContent = bgm.playing && bgm.endAt ? fmtLeft(bgm.endAt - Date.now()) : '';
+  $('bgmPlay').textContent = bgm.playing ? 'Stop' : 'Play';
+  $('bgmList').querySelectorAll('.bgm-item').forEach(function (b) { b.classList.toggle('on', b.dataset.track === bgm.track); });
+  $('bgmTimer').querySelectorAll('.bgm-chip').forEach(function (b) { b.classList.toggle('on', +b.dataset.min === bgm.timer); });
+  $('bgmWords').querySelectorAll('.bgm-chip').forEach(function (b) { b.classList.toggle('on', (b.dataset.words === '1') === bgm.words); });
+  $('bgmLeft').textContent = bgm.playing ? (bgm.endAt ? 'あと ' + fmtLeft(bgm.endAt - Date.now()) + ' で止まります' : 'タイマーなしで再生中') : '';
+}
+(function buildBgmPanel() {
+  var list = $('bgmList'), lastGroup = '';
+  BGM_TRACKS.forEach(function (t) {
+    if (t.group !== lastGroup) {
+      lastGroup = t.group;
+      var h = document.createElement('div'); h.className = 'bgm-group'; h.textContent = t.group; list.appendChild(h);
+    }
+    var b = document.createElement('button');
+    b.className = 'bgm-item'; b.dataset.track = t.id;
+    b.innerHTML = '<i>' + t.icon + '</i><span><b>' + t.name + '</b><small>' + t.sub + '</small></span>';
+    b.onclick = function () { bgmStart(t.id); };
+    list.appendChild(b);
+  });
+  var tm = $('bgmTimer');
+  BGM_TIMERS.forEach(function (x) {
+    var b = document.createElement('button');
+    b.className = 'bgm-chip'; b.dataset.min = x[0]; b.textContent = x[1];
+    b.onclick = function () {
+      bgm.timer = x[0]; store('bgmTimer', String(x[0]));
+      if (bgm.playing) { bgm.endAt = bgm.timer ? Date.now() + bgm.timer * 60000 : 0; bgm.fading = false; bgm.master.gain.setTargetAtTime(bgm.vol / 100, bgm.ctx.currentTime, .5); }
+      bgmUI();
+    };
+    tm.appendChild(b);
+  });
+  var wd = $('bgmWords');
+  [[false, 'オフ'], [true, 'やさしい言葉']].forEach(function (x) {
+    var b = document.createElement('button');
+    b.className = 'bgm-chip'; b.dataset.words = x[0] ? '1' : '0'; b.textContent = x[1];
+    b.onclick = function () {
+      bgm.words = x[0]; store('bgmWords', x[0] ? '1' : '0');
+      if (bgm.words) { unlockSpeech(); if (bgm.playing) wordsLoop(8000); } else wordsStop();
+      bgmUI();
+    };
+    wd.appendChild(b);
+  });
+  var vol = $('bgmVol'); vol.value = bgm.vol;
+  vol.oninput = function () {
+    bgm.vol = +vol.value; store('bgmVol', String(bgm.vol));
+    if (bgm.playing && !bgm.fading) bgm.master.gain.setTargetAtTime(bgm.vol / 100, bgm.ctx.currentTime, .1);
+  };
+  $('bgmFab').onclick = function () { bgmUI(); $('bgmVeil').classList.add('on'); };
+  $('bgmClose').onclick = function () { $('bgmVeil').classList.remove('on'); };
+  $('bgmVeil').onclick = function (e) { if (e.target === $('bgmVeil')) $('bgmVeil').classList.remove('on'); };
+  $('bgmPlay').onclick = function () { if (bgm.playing) bgmStop(); else bgmStart(bgm.track); };
+  bgmUI();
+})();
+/* おやすみタイマー：残り30秒からフェードアウトして停止 */
+setInterval(function () {
+  if (!bgm.playing || !bgm.endAt) return;
+  var left = bgm.endAt - Date.now();
+  if (left <= 30000 && !bgm.fading) {
+    bgm.fading = true;
+    wordsStop();
+    var t = bgm.ctx.currentTime;
+    bgm.master.gain.cancelScheduledValues(t);
+    bgm.master.gain.setValueAtTime(bgm.master.gain.value, t);
+    bgm.master.gain.linearRampToValueAtTime(0, t + Math.max(1, left / 1000));
+  }
+  if (left <= 0) { bgmStop(.5); toast('おやすみなさい。BGMを止めました'); }
+  bgmUI();
+}, 1000);
+
+/* ---- アプリをまたいだBGMの引き継ぎ（日記帳 ⇄ memo） ----
+ * ページを移ると音は止まり、ブラウザは操作なしの自動再生を許さない。
+ * そこで ?bgm=曲.音量.終了時刻.ことば を受け取り、最初にどこかをタップした瞬間に続きから鳴らす。 */
+function bgmHandoff() { return bgm.playing ? [bgm.track, bgm.vol, bgm.endAt || 0, bgm.words ? 1 : 0].join('.') : ''; }
+function bgmArmResume(code) {
+  var a = String(code || '').split('.');
+  if (a.length < 4 || !BGM_BUILD[a[0]]) return;
+  var endAt = +a[2] || 0;
+  if (endAt && endAt < Date.now() + 5000) return;   // もうタイマーが切れている
+  bgm.track = a[0]; bgm.vol = Math.max(0, Math.min(100, +a[1] || 60)); bgm.words = a[3] === '1';
+  $('bgmVol').value = bgm.vol;
+  var hint = $('bgmResume');
+  hint.classList.add('on');
+  function go() {
+    document.removeEventListener('touchend', go, true);
+    document.removeEventListener('click', go, true);
+    hint.classList.remove('on');
+    if (endAt && endAt < Date.now() + 1000) return;
+    bgmStart(bgm.track);
+    bgm.endAt = endAt;
+    bgmUI();
+  }
+  document.addEventListener('touchend', go, true);
+  document.addEventListener('click', go, true);
+}
+(function bgmReadHandoff() {
+  function use(params) { if (params && params.bgm) bgmArmResume(params.bgm); }
+  try {
+    if (window.google && google.script && google.script.url) { google.script.url.getLocation(function (loc) { use(loc.parameter); }); return; }
+  } catch (e) {}
+  var q = {};
+  location.search.replace(/[?&]([^=&]+)=([^&]*)/g, function (_, k, v) { q[k] = decodeURIComponent(v); });
+  use(q);
+})();
+
+window.MemoBGM = { handoff: bgmHandoff };
+})();
+</script>

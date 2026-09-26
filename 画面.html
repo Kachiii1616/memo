@@ -463,7 +463,11 @@ function applyTheme(t){
   document.querySelectorAll('#themePick [data-theme]').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-theme')===t); });
 }
 function setMemoTheme(t){ applyTheme(t); call('setMemoTheme',[t]).catch(function(){}); }
-function goJournal(){ window.open(JOURNAL_URL,'_top'); }
+function goJournal(){
+  // 再生中のおやすみBGM（曲・音量・残り時間）を日記帳へ引き継ぐ
+  var h=(window.MemoBGM&&window.MemoBGM.handoff())||'';
+  window.open(JOURNAL_URL+(h?'?bgm='+encodeURIComponent(h):''),'_top');
+}
 applyTheme(currentTheme());
 
 /* ===== 初期化 ===== */

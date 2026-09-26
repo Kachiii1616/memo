@@ -118,7 +118,11 @@ function doGet(e) {
   if (MEMO_THEMES_.indexOf(theme) >= 0) props.setProperty('MEMO_THEME', theme);
   else theme = props.getProperty('MEMO_THEME') || 'standard';
   const cls = 'theme-' + theme + (p.from === 'journal' ? ' from-journal' : '');
-  const html = HtmlService.createHtmlOutputFromFile('画面').getContent().replace('<body>', '<body class="' + cls + '">');
+  // おやすみBGM（Journal と共通）を </body> の直前に差し込む。中身に $ を含むので置換は関数で渡す
+  const bgm = HtmlService.createHtmlOutputFromFile('bgm').getContent();
+  const html = HtmlService.createHtmlOutputFromFile('画面').getContent()
+    .replace('<body>', '<body class="' + cls + '">')
+    .replace('</body>', function () { return bgm + '</body>'; });
   return HtmlService.createHtmlOutput(html)
     .setTitle('ToDo メモ')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
