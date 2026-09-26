@@ -196,7 +196,6 @@
   .schkid.done{text-decoration:line-through;opacity:.55}
   .schkid .kchk{cursor:pointer;flex:none}
   .dchk .tpick:hover{background:#f3ebe6}
-  .dchk .tadd{font-size:11px;color:var(--rose);margin-left:6px;opacity:.75;white-space:nowrap}
   .toolbar{display:flex;flex-wrap:wrap;gap:4px;padding:4px 2px 8px 26px}
   .toolbar button{border:1px solid var(--line);background:var(--paper2);cursor:pointer;color:var(--sub);
     font-size:12px;padding:4px 9px;border-radius:8px;line-height:1.2}
@@ -1321,7 +1320,7 @@ function renderDailyTree(tabId,parentId,depth){
     else if(STATE.active===SCHEDULE){
       var pt=schTimesOf(n);
       h+='<div class="dctx s'+Math.min(depth,1)+(pt.length?' insch':'')+'"><span class="tpick" title="'+(pt.length?'タップで時間を変える／予定から外す':'タップで時間を選んで予定に入れる（下の項目もまとめて表示）')+'" onclick="'+(pt.length?'unscheduleNode':'schedFromTask')+'(\''+jsq(n.id)+'\')">'+
-        (pt.length?'<span class="stime">'+esc(pt[0])+'</span><span class="sched">'+esc(n.text)+'</span>':esc(n.text)+'<span class="tadd">🕐</span>')+'</span></div>';
+        (pt.length?'<span class="stime">'+esc(pt[0])+'</span><span class="sched">'+esc(n.text)+'</span>':esc(n.text))+'</span></div>';
     }
     else h+='<div class="dctx s'+Math.min(depth,1)+'">'+linkify(n.text)+'</div>';
     var sub=renderDailyTree(tabId,n.id,depth+1);
@@ -1338,7 +1337,7 @@ function dailyCheckRow(n){
     // 予定に入れた項目：チェックの丸の代わりに時刻を出し、項目名に横線
     (st?'<div class="stime" onclick="unscheduleNode(\''+jsq(n.id)+'\')" title="タップで時間を変える／予定から外す　予定：'+esc(st.times.join('・'))+(st.via?'（'+esc(st.via)+'）':'')+'">'+esc(st.times[0])+'</div>'
        :'<div class="check'+(on?' on':'')+'" onclick="toggleDailyCheck(\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>')+
-    ico+(inSch?'<span class="t tpick'+(st?' sched':'')+'" title="'+(st?'タップで時間を変える／予定から外す':'タップで時間を選んで予定に入れる')+'" onclick="'+(st?'unscheduleNode':'schedFromTask')+'(\''+jsq(n.id)+'\')">'+esc(n.text)+(st?'':'<span class="tadd">🕐</span>')+'</span>':'<span class="t">'+linkify(n.text)+'</span>')+'</div>';
+    ico+(inSch?'<span class="t tpick'+(st?' sched':'')+'" title="'+(st?'タップで時間を変える／予定から外す':'タップで時間を選んで予定に入れる')+'" onclick="'+(st?'unscheduleNode':'schedFromTask')+'(\''+jsq(n.id)+'\')">'+esc(n.text)+'</span>':'<span class="t">'+linkify(n.text)+'</span>')+'</div>';
 }
 // ❀その日マークを全部外す：ダブルクリック（2回タップ）で確定。1回だけなら案内のみ
 var _clrTodayAt=0;
