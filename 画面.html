@@ -130,6 +130,9 @@
   .schitem.done .schtime{color:#bcb3a6}
   .schitem.done .schtitle{text-decoration:line-through;color:#b3a999;font-weight:500}
   .schitem.done .schmemo{text-decoration:line-through;opacity:.55}
+  .schflower{border:none;background:transparent;cursor:pointer;padding:0 5px 0 0;line-height:0;vertical-align:-2px}
+  .schflower:hover{transform:scale(1.15)}
+  .schdel:hover{background:#f3dede !important;color:#c0392b !important}
   .schedit{flex:none;border:none;background:transparent;cursor:pointer;color:var(--line);font-size:13px;
     padding:2px 6px;margin-top:2px;border-radius:6px;line-height:1}
   .schedit:hover{background:#efeae2;color:var(--ink)}
@@ -933,9 +936,47 @@ function schRowHtml(b){
   return '<div class="schitem'+(b.done?' done':'')+(isSleep?' sleep':'')+'">'+
     '<div class="check'+(b.done?' on':'')+'" onclick="toggleScheduleDone('+b.i+','+b.sheetRow+')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>'+
     '<div class="schtime">'+esc(b.time)+'</div>'+
-    '<div class="schbody"><div class="schtitle">'+linkify(b.title)+'</div>'+
+    '<div class="schbody"><div class="schtitle">'+
+      (schFlagNodes(b).length?'<button class="schflower" title="タップで❀を外す（リストから外れます）" onclick="schUnflower('+b.bi+')">'+markIcon('today',true)+'</button>':'')+
+      linkify(b.title)+'</div>'+
     (b.memo?'<div class="schmemo">'+linkify(b.memo)+'</div>':'')+schChildrenHtml(b)+'</div>'+
-    '<button class="schedit" title="編集" onclick="editSched('+b.bi+')">✎</button></div>';
+    '<button class="schedit" title="編集" onclick="editSched('+b.bi+')">✎</button>'+
+    '<button class="schedit schdel" title="削除（リストの❀も外す）" onclick="schDelete('+b.bi+')">✕</button></div>';
+}
+// 予定に対応する❀付きの項目（本人。まとめ項目なら中の❀付き項目すべて）
+function schFlagNodes(b){
+  var out=[], seen={};
+  function add(n){ if(n.today&&!seen[n.id]){ seen[n.id]=true; out.push(n); } }
+  STATE.nodes.forEach(function(n){
+    if(!schMatch(b,n)) return;
+    if(!hasKids(n)) add(n);
+    else (function walk(id){ STATE.nodes.forEach(function(c){ if(c.parentId===id){ if(hasKids(c)) walk(c.id); else add(c); } }); })(n.id);
+  });
+  return out;
+}
+function schUnmark_(nodes){
+  if(!nodes.length) return 0;
+  snap();
+  nodes.forEach(function(n){ n.today=false; });
+  call('bulkSetMark',[nodes.map(function(n){return n.id;}),'none']).catch(failNote);
+  return nodes.length;
+}
+// 時間割の❀をタップ：リストの❀を外す（時間割の予定は残す）
+function schUnflower(bi){
+  var b=(STATE.schedBlocks||[])[bi]; if(!b) return;
+  var k=schUnmark_(schFlagNodes(b));
+  renderView();
+  if(k) toast('❀を'+k+'件外しました（「戻る」で戻せます）');
+}
+// 時間割の✕：予定を削除し、リストの❀も外す
+function schDelete(bi){
+  var b=(STATE.schedBlocks||[])[bi]; if(!b) return;
+  var fl=schFlagNodes(b);
+  openConfirm('「'+b.title+'」（'+b.time+'）を時間割から削除しますか？'+(fl.length?'\nリストの❀も外れます（'+fl.length+'件）':''), function(){
+    var date=STATE.scheduleDate||STATE.today;
+    schUnmark_(fl);
+    call('deleteScheduleRow',[date,b.sheetRow]).then(function(d){ STATE.schedule=d; if(STATE.active===SCHEDULE) renderSchedule(); toast('削除しました'); }).catch(failNote);
+  });
 }
 // 予定の内容がまとめ項目（家・デスクワーク等）なら、その下の項目を一覧で出す（❀付きを優先、無ければ未完了ぜんぶ）
 function schChildrenHtml(b){
