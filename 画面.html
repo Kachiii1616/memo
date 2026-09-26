@@ -6,7 +6,7 @@
 <title>ToDo メモ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Shippori+Mincho:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@400;500&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Shippori+Mincho:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@400;500&family=Caveat:wght@500;600&family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#eae6df; --paper:#f7f5f0; --paper2:#fbfaf6;
@@ -298,6 +298,73 @@
     .dl{padding-left:4px;padding-right:4px}
   }
 
+
+  /* ====================================================================
+   * 着せ替え（日記帳アプリ Journal と同じ2種＋標準）
+   *   theme-antique : 青いクロス装の古書（マット・金の文字）
+   *   theme-summer  : 夏の雑誌風（ピンク×クリーム×ミント、ネイビーの手書き）
+   * ==================================================================== */
+  header{position:relative;padding-top:40px}
+  .theme-pick{position:absolute;top:0;right:0;display:flex;gap:4px;padding:4px;border-radius:999px;
+    background:rgba(255,255,255,.55);box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);z-index:2}
+  .theme-pick button{width:26px;height:26px;border-radius:50%;border:none;background:transparent;cursor:pointer;display:grid;place-items:center;padding:0}
+  .theme-pick button i{width:17px;height:17px;border-radius:50%;display:block}
+  .theme-pick button.on{box-shadow:0 0 0 2px var(--ink)}
+  .theme-pick [data-theme="standard"] i{background:linear-gradient(135deg,#f7f5f0 50%,#b89a8c 50%);box-shadow:inset 0 0 0 1px #ded7cc}
+  .theme-pick [data-theme="antique"] i{background:#7d93ae;box-shadow:inset 0 0 0 2px #ef9a82}
+  .theme-pick [data-theme="summer"] i{background:linear-gradient(135deg,#f5cbc1 50%,#fbf2da 50%);box-shadow:inset 0 0 0 1.5px #2e3d6b}
+  .tojournal{position:absolute;top:2px;left:0;border:none;background:rgba(255,255,255,.55);color:var(--ink);cursor:pointer;
+    font-size:12px;padding:5px 11px;border-radius:999px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);display:none}
+  body.from-journal .tojournal{display:inline-block}
+
+  /* ---- Antique Blue ---- */
+  body.theme-antique{
+    --bg:#ebe5da; --paper:#f7f1e6; --paper2:#fbf7ee;
+    --ink:#2a2a33; --sub:#7b8199; --line:#d3d6de;
+    --accent:#6c819c; --done:#9fb5a8; --gold:#a9823e; --rose:#d9826c;
+    --shadow:0 8px 22px rgba(80,70,55,.16);
+    --print:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 .3  0 0 0 0 .28  0 0 0 0 .25  0 0 0 .22 0'/></filter><filter id='b'><feTurbulence type='fractalNoise' baseFrequency='.018' numOctaves='3' seed='9'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .16 -.02'/></filter><rect width='100%' height='100%' filter='url(%23b)'/><rect width='100%' height='100%' filter='url(%23p)'/></svg>");
+    background-color:#ebe5da;background-image:var(--print);background-size:400px 400px;
+  }
+  html:has(body.theme-antique){background:#ebe5da}
+  body.theme-antique header{background-color:#7d93ae;background-image:var(--print);background-size:400px 400px;border-radius:4px 10px 10px 4px;
+    padding:48px 12px 18px;box-shadow:3px 0 0 -1px #f3ede2,5px 1px 0 -1px #e2d9c8,0 10px 22px rgba(80,70,55,.18)}
+  body.theme-antique .brand{font-family:'IM Fell English',serif;font-weight:400;color:#ecd08a;letter-spacing:.04em;text-shadow:0 1px 0 rgba(20,28,48,.35)}
+  body.theme-antique .brand .dot{color:#ef9a82}
+  body.theme-antique .tagline{font-family:'IM Fell English',serif;font-style:italic;font-size:17px;color:#efe6d0}
+  body.theme-antique .today{color:rgba(239,230,208,.8);font-family:'IM Fell English SC',serif}
+  body.theme-antique .theme-pick{top:8px;right:8px}
+  body.theme-antique .tojournal{top:10px;left:8px}
+  body.theme-antique .card{border:1px solid rgba(108,129,156,.18)}
+  body.theme-antique .card-title{font-family:'IM Fell English','Shippori Mincho',serif;color:#3d4a66}
+  body.theme-antique .card-title .en,body.theme-antique .count{font-family:'IM Fell English',serif}
+  body.theme-antique .tab.active::after{background:#6c819c}
+  body.theme-antique footer{font-family:'IM Fell English SC',serif;color:#8a90a6}
+
+  /* ---- Summer Magazine ---- */
+  body.theme-summer{
+    --bg:#fbf2da; --paper:#fffcf4; --paper2:#fffdf8;
+    --ink:#2e3d6b; --sub:#7c87a8; --line:#eed9cf;
+    --accent:#e0685a; --done:#7fc4a8; --gold:#d9a93a; --rose:#e0685a;
+    --shadow:0 6px 18px rgba(224,104,90,.16);
+    background-color:#fbf2da;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><g fill='%23fbe3dc'><ellipse cx='30' cy='26' rx='7' ry='4' transform='rotate(-30 30 26)'/><ellipse cx='92' cy='60' rx='5' ry='3' transform='rotate(40 92 60)'/><ellipse cx='170' cy='22' rx='8' ry='4' transform='rotate(15 170 22)'/><ellipse cx='228' cy='84' rx='6' ry='3.5' transform='rotate(-50 228 84)'/><ellipse cx='52' cy='130' rx='6' ry='3' transform='rotate(70 52 130)'/><ellipse cx='140' cy='120' rx='7' ry='4' transform='rotate(-10 140 120)'/><ellipse cx='210' cy='170' rx='5' ry='3' transform='rotate(30 210 170)'/></g><g fill='%23efb7aa'><circle cx='64' cy='80' r='2.4'/><circle cx='196' cy='120' r='2'/><circle cx='128' cy='36' r='1.8'/></g></svg>"),linear-gradient(180deg,#f5cbc1 0,#f5cbc1 100%);
+    background-size:260px 260px,100% 260px;background-repeat:repeat-x,no-repeat;
+  }
+  html:has(body.theme-summer){background:#fbf2da}
+  body.theme-summer .brand{font-family:'Playfair Display',serif;font-weight:800;color:#2e3d6b}
+  body.theme-summer .brand .dot{color:#e0685a}
+  body.theme-summer .tagline{font-family:'Caveat',cursive;font-size:24px;color:#2e3d6b}
+  body.theme-summer .today{color:#2e3d6b}
+  body.theme-summer .theme-pick,body.theme-summer .tojournal{background:rgba(255,252,244,.85);box-shadow:0 2px 8px rgba(224,104,90,.18)}
+  body.theme-summer .card{border:1.5px solid #2e3d6b;border-radius:16px;box-shadow:4px 4px 0 #bfe3d3}
+  body.theme-summer .card-title{font-family:'Playfair Display','Shippori Mincho',serif;font-weight:700;color:#2e3d6b}
+  body.theme-summer .card-title .en{font-family:'Caveat',cursive;font-style:normal;font-size:18px;color:#e0685a}
+  body.theme-summer .tab{color:#5b6892}
+  body.theme-summer .tab.active{color:#2e3d6b}
+  body.theme-summer .tab.active::after{background:#e0685a;height:3px}
+  body.theme-summer footer{font-family:'Caveat',cursive;font-size:15px;letter-spacing:.08em;color:#5b6892}
+
   /* ---- 印刷 ---- */
   #printArea{display:none}
   @media print{
@@ -326,6 +393,12 @@
 <body>
 <div class="wrap">
   <header>
+    <button class="tojournal" onclick="goJournal()" title="日記帳へ戻る">‹ Journal</button>
+    <div class="theme-pick" id="themePick" title="着せ替え">
+      <button data-theme="standard" title="標準" onclick="setMemoTheme('standard')"><i></i></button>
+      <button data-theme="antique" title="Antique Blue（日記帳と同じ）" onclick="setMemoTheme('antique')"><i></i></button>
+      <button data-theme="summer" title="Summer Magazine（日記帳と同じ）" onclick="setMemoTheme('summer')"><i></i></button>
+    </div>
     <div class="brand">memo<span class="dot">.</span></div>
     <div class="tagline">my little check list</div>
     <div class="today" id="todayLabel"></div>
@@ -376,6 +449,19 @@ function call(fn,args){
     else rej(new Error('no backend'));
   });
 }
+
+/* ===== 着せ替え ===== */
+var MEMO_THEMES=['standard','antique','summer'];
+var JOURNAL_URL='https://script.google.com/macros/s/AKfycbx8Dx8oI6qEed6EYqSXQvuxUSajPc_eAxXaVLOb609PyaKsAHigyKpd3QVvd66okyzr/exec';
+function currentTheme(){ for(var i=0;i<MEMO_THEMES.length;i++) if(document.body.classList.contains('theme-'+MEMO_THEMES[i])) return MEMO_THEMES[i]; return 'standard'; }
+function applyTheme(t){
+  if(MEMO_THEMES.indexOf(t)<0) t='standard';
+  MEMO_THEMES.forEach(function(x){ document.body.classList.toggle('theme-'+x, x===t); });
+  document.querySelectorAll('#themePick [data-theme]').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-theme')===t); });
+}
+function setMemoTheme(t){ applyTheme(t); call('setMemoTheme',[t]).catch(function(){}); }
+function goJournal(){ window.open(JOURNAL_URL,'_top'); }
+applyTheme(currentTheme());
 
 /* ===== 初期化 ===== */
 function boot(){

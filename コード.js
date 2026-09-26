@@ -108,10 +108,25 @@ const SCAFFOLD_WORK = [
 ];
 
 // ===== Webアプリ入口 ========================================================
-function doGet() {
-  return HtmlService.createHtmlOutputFromFile('画面')
+// ?theme=antique|summer|standard で着せ替えを指定（日記帳アプリから来るときはその見た目を引き継ぐ）。
+// 指定があれば保存して次回もその見た目。?from=journal なら「‹ Journal」戻るボタンを出す。
+const MEMO_THEMES_ = ['standard', 'antique', 'summer'];
+function doGet(e) {
+  const p = (e && e.parameter) || {};
+  const props = PropertiesService.getScriptProperties();
+  let theme = String(p.theme || '');
+  if (MEMO_THEMES_.indexOf(theme) >= 0) props.setProperty('MEMO_THEME', theme);
+  else theme = props.getProperty('MEMO_THEME') || 'standard';
+  const cls = 'theme-' + theme + (p.from === 'journal' ? ' from-journal' : '');
+  const html = HtmlService.createHtmlOutputFromFile('画面').getContent().replace('<body>', '<body class="' + cls + '">');
+  return HtmlService.createHtmlOutput(html)
     .setTitle('ToDo メモ')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
+}
+function setMemoTheme(theme) {
+  if (MEMO_THEMES_.indexOf(theme) < 0) throw new Error('bad theme');
+  PropertiesService.getScriptProperties().setProperty('MEMO_THEME', theme);
+  return theme;
 }
 
 function onOpen() {
