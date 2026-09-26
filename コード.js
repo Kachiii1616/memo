@@ -344,7 +344,7 @@ function autoPickTasks_() {
   let startH = Math.ceil(hour); if (startH < 7) startH = 7;
   const slots = 22 - startH;                 // 今から22時までの1時間枠
   if (slots <= 0) return [];
-  const marked = H.nodes.filter(function (n) { return (n.today || n.daily) && !H.hasKids[n.id]; }).length;
+  const marked = H.nodes.filter(function (n) { return n.today && !H.hasKids[n.id]; }).length;
   const need = slots - marked;               // マーク済みで埋まらない残り枠のぶんだけ
   if (need <= 0) return [];
 
@@ -375,7 +375,7 @@ function buildSchedule_(opts) {
   const date = opts.date || todayStr_();
   const slot = Number(opts.slot) || 60;
   const H = schedHelpers_();
-  const tasks = H.nodes.filter(function (n) { return (n.today || n.daily) && !H.hasKids[n.id]; });
+  const tasks = H.nodes.filter(function (n) { return n.today && !H.hasKids[n.id]; });
   tasks.sort(function (a, b) { const ra = H.rank(a), rb = H.rank(b); if (ra !== rb) return ra - rb; return (a.order || 0) - (b.order || 0); });
 
   const now = new Date();
@@ -393,7 +393,7 @@ function buildSchedule_(opts) {
     rows.push([time, n.text, tags.filter(Boolean).join(' / '), '', '']);
     mins += slot;
   });
-  if (rows.length === 1) rows.push(['—', '今日の ❀／★ 項目がありません', 'まず項目に ❀ を付けてください', '', '']);
+  if (rows.length === 1) rows.push(['—', '今日の ❀ 項目がありません', 'まず項目に ❀ を付けてください', '', '']);
 
   const ss = getScheduleSS_();
   let sh = ss.getSheetByName(date);

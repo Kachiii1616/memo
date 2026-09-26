@@ -175,6 +175,9 @@
   .tbulk{flex:none;border:1px solid var(--line);background:var(--paper2);cursor:pointer;color:var(--sub);font-family:'Zen Kaku Gothic New',sans-serif;
     font-size:12px;padding:4px 10px;border-radius:8px;line-height:1.2;touch-action:manipulation;user-select:none}
   .tbulk:hover{border-color:var(--rose);color:var(--ink)}
+  .dchk .tpick{cursor:pointer;border-radius:6px}
+  .dchk .tpick:hover{background:#f3ebe6}
+  .dchk .tadd{font-size:11px;color:var(--rose);margin-left:6px;opacity:.75;white-space:nowrap}
   .toolbar{display:flex;flex-wrap:wrap;gap:4px;padding:4px 2px 8px 26px}
   .toolbar button{border:1px solid var(--line);background:var(--paper2);cursor:pointer;color:var(--sub);
     font-size:12px;padding:4px 9px;border-radius:8px;line-height:1.2}
@@ -262,7 +265,7 @@
     font:inherit;font-size:13px;line-height:1.5;color:var(--ink);background:var(--paper);margin-bottom:12px;outline:none;resize:vertical}
   .pastebox:focus{border-color:var(--accent)}
 
-  /* ---- スマホ：右端の ★❀✕⋯ と余白を詰めて本文の1行文字数を増やす ---- */
+  /* ---- スマホ：右端の ❀✕⋯ と余白を詰めて本文の1行文字数を増やす ---- */
   @media (max-width:600px){
     body{padding-left:8px;padding-right:8px}
     .card{padding:14px 9px 12px}
@@ -472,13 +475,12 @@ function renderTab(tabId){
       '<span class="shophint">'+markIcon('today',true)+' を付けたものが買い物リストに入ります</span></div>';
   }
   html+='<div class="bulkbar"><span class="bl">タブ全体：</span>'+
-    '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'daily\')">'+markIcon('daily',true)+' 全部定期</button>'+
     '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'today\')">'+markIcon('today',true)+' 全部その日</button>'+
     '<button onclick="bulkMark(\''+jsq(tabId)+'\',\'none\')">解除</button></div>';
   html+='<div class="tree" ondblclick="if(event.target===this)addRoot(\''+jsq(tabId)+'\')">'+renderKids(tabId,'',0)+'</div>';
   if(!all.length) html+='<div class="empty" ondblclick="addRoot(\''+jsq(tabId)+'\')">からっぽです<span class="sw">ここをダブルクリックで追加</span></div>';
   html+='<div class="addline"><button onclick="addRoot(\''+jsq(tabId)+'\')">＋ 中タブを追加</button></div>';
-  html+='<div class="hint">行を<b>1タップ＝選択</b>／<b>もう1タップ＝編集</b>。入力・期限・追加・レベル(中/小/孫/孫の孫)は<b>下のバー</b>でまとめて操作。<br><b>⠿ドラッグ</b>：左寄せ＝同じ並び／<b>右寄せ＝その項目の中へ</b> ・ 右のマークで '+markIcon('daily',true)+'<b style="color:var(--gold)">定期</b>／'+markIcon('today',true)+'<b style="color:var(--rose)">その日</b> ・ … で移動/削除</div>';
+  html+='<div class="hint">行を<b>1タップ＝選択</b>／<b>もう1タップ＝編集</b>。入力・期限・追加・レベル(中/小/孫/孫の孫)は<b>下のバー</b>でまとめて操作。<br><b>⠿ドラッグ</b>：左寄せ＝同じ並び／<b>右寄せ＝その項目の中へ</b> ・ 右の '+markIcon('today',true)+'<b style="color:var(--rose)">その日</b> ・ … で移動/削除</div>';
   html+='</div>';
   v.innerHTML=html;
 }
@@ -503,7 +505,6 @@ function nodeRow(n,depth){
   h+='<div class="check'+(n.done?' on':'')+'" onclick="toggleDone(\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>';
   h+='<div class="label" title="1回タップ＝選択／もう1回＝編集" onclick="rowClick(\''+jsq(n.id)+'\')" ondblclick="rowDbl(\''+jsq(n.id)+'\')">'+linkify(n.text)+'</div>';
   if(n.note) h+='<span class="dl" title="期限">〆'+esc(n.note)+'</span>';
-  h+='<button class="mk2 daily'+(n.daily?' on':'')+'" title="定期（毎日くりかえし）／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'daily\')">'+markIcon('daily',n.daily)+'</button>';
   h+='<button class="mk2 today'+(n.today?' on':'')+'" title="その日にすること／もう一度で解除" onclick="setMark(\''+jsq(n.id)+'\',\'today\')">'+markIcon('today',n.today)+'</button>';
   h+='<button class="del" title="削除" onclick="removeNode(\''+jsq(n.id)+'\')">✕</button>';
   h+='<button class="menu'+(STATE.menuId===n.id?' on':'')+'" title="操作" onclick="toggleMenu(\''+jsq(n.id)+'\')">⋯</button>';
@@ -511,8 +512,7 @@ function nodeRow(n,depth){
   if(STATE.menuId===n.id){
     var tb='<div class="toolbar">';
     if(kids){ // この中（中タブ）をまとめて
-      tb+='<button class="tbbulk" onclick="bulkMarkNode(\''+jsq(n.id)+'\',\'daily\')">'+markIcon('daily',true)+' 中ぜんぶ定期</button>'+
-          '<button class="tbbulk" onclick="bulkMarkNode(\''+jsq(n.id)+'\',\'today\')">'+markIcon('today',true)+' 中ぜんぶその日</button>'+
+      tb+='<button class="tbbulk" onclick="bulkMarkNode(\''+jsq(n.id)+'\',\'today\')">'+markIcon('today',true)+' 中ぜんぶその日</button>'+
           '<button class="tbbulk" onclick="bulkMarkNode(\''+jsq(n.id)+'\',\'none\')">中を解除</button>';
     }
     tb+='<button onclick="moveNode(\''+jsq(n.id)+'\',-1)">↑ 上へ</button>'+
@@ -769,7 +769,7 @@ function renderSchedule(){
     if(!time && !title && !memo) continue;
     blocks.push({i:i, sheetRow:i+1, time:time, title:title, memo:memo, done:schDone(r)});
   }
-  // 今日マークしたタスク（★❀）＝memo由来。※進捗%は「今日の予定」ブロックのみで計算
+  // 今日マークしたタスク（❀）＝memo由来。※進捗%は「今日の予定」ブロックのみで計算
   var flagged=STATE.nodes.filter(isFlagged);
   var total=blocks.length, doneN=blocks.filter(function(b){return b.done;}).length;
   var pct=total?Math.round(doneN/total*100):0;
@@ -780,21 +780,22 @@ function renderSchedule(){
     '<button class="tbtn" onclick="STATE.schedule=null;renderSchedule();">↻ 更新</button></div>';
   html+='<div class="progress"><div class="ring" style="--p:'+pct+'"><i>'+pct+'%</i></div>'+
     '<div class="pmsg">'+esc(msg)+'<small>'+doneN+' / '+total+' 完了</small></div></div>';
-  html+='<div class="shoprow"><button class="shopopen" onclick="makeSchedule()">🪄 マークから予定作成</button>'+
-    '<button class="shopopen" onclick="autoPickSchedule()">🎯 自動で選んで作成</button>'+
+  html+='<div class="shoprow"><button class="shopopen" onclick="autoPickSchedule()">🎯 自動で選んで作成</button>'+
     '<button class="shopopen" onclick="openPasteSchedule()">✏️ 貼り付け</button></div>'+
-    '<div class="shophint" style="margin:4px 2px 0">🪄＝❀/★のタスクを1時間ごとに配置 ／ 🎯＝リストから「今からできること」も自動で選んで❀を付けてから予定を作成</div>';
+    '<div class="shophint" style="margin:4px 2px 0">🎯＝リストから「今からできること」も自動で選んで❀を付けてから予定を作成</div>';
   var dates=d.dates||[];
   if(dates.length){
     html+='<div class="datebar">';
     dates.forEach(function(dt){ html+='<button class="chip'+(dt===date?' on':'')+'" onclick="pickScheduleDate(\''+jsq(dt)+'\')">'+esc(dt.slice(5))+'</button>'; });
     html+='</div>';
   }
-  // ✦ 今日マークしたタスク（時間割の上に表示。押すとmemo本体も完了・❀/★タップで解除）
+  // ✦ 今日マークしたタスク（時間割の上に表示。押すとmemo本体も完了・❀タップで解除・項目名タップで予定へ）
   if(flagged.length){
     var todayN=flagged.filter(function(n){return n.today;}).length;
     html+='<div class="schsub" style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:8px">✦ 今日マークしたタスク'+
       (todayN?'<button class="tbulk" title="ダブルクリック（2回タップ）で確定" onclick="clearTodayMarksTap()" ondblclick="event.preventDefault()">'+markIcon('today',true)+' 全部外す（'+todayN+'）</button>':'')+'</div>';
+    html+='<div class="shoprow" style="margin-top:4px"><button class="shopopen" onclick="makeSchedule()">🪄 このリストから予定を自動作成</button></div>'+
+      '<div class="shophint" style="margin:2px 2px 6px">項目名をタップ＝時間を選んで予定に入れる ／ 🪄＝下の ❀ 全部を1時間ごとに並べて予定表を作り直す</div>';
     STATE.tabs.forEach(function(t){
       if(!STATE.nodes.some(function(n){return n.tab===t.id&&isFlagged(n);}))return;
       html+='<div class="group-label">'+esc(t.name)+'</div>'+renderDailyTree(t.id,'',0);
@@ -831,14 +832,24 @@ function schRowHtml(b){
 function schHour(t){ var m=String(t||'').match(/^(\d{1,2})[:：](\d{2})/); return m?+m[1]:null; }
 // ✎から：既存の予定を編集
 function editSched(bi){ var b=(STATE.schedBlocks||[])[bi]; if(b) openScheduleEdit(b.sheetRow,b.time,b.title,b.memo); }
+// ❀リストの項目をタップ：時間を選んで予定に組み込む（初期値＝今より後で空いている30分枠）
+function schedFromTask(id){
+  var n=byId(id); if(!n) return;
+  var used={}; (STATE.schedBlocks||[]).forEach(function(b){ used[String(b.time).slice(0,5)]=true; });
+  var nd=new Date(), m=Math.ceil((nd.getHours()*60+nd.getMinutes())/30)*30;
+  if(m<5*60) m=5*60;
+  while(m<=23*60+30 && used[pad2(Math.floor(m/60))+':'+pad2(m%60)]) m+=30;
+  if(m>23*60+30) m=23*60+30;
+  openScheduleEdit(0, pad2(Math.floor(m/60))+':'+pad2(m%60), n.text, tabName(n.tab));
+}
 // 空き時間をタップ：その時間で新規追加
 function editSchedNew(t){ openScheduleEdit(0,t,'',''); }
 function openScheduleEdit(sheetRow,time,title,memo){
   STATE._schedRow=Number(sheetRow)||0;
   var opts='';
-  var std=/^([01]?\d|2[0-3]):00$/.test(time||'');
+  var std=/^([01]?\d|2[0-3]):(00|30)$/.test(time||'');
   if(time&&!std) opts+='<option value="'+esc(time)+'" selected>'+esc(time)+'</option>';
-  for(var h=5;h<=23;h++){ var t=pad2(h)+':00'; opts+='<option value="'+t+'"'+(time===t?' selected':'')+'>'+t+'</option>'; }
+  for(var h=5;h<=23;h++) ['00','30'].forEach(function(mm){ var t=pad2(h)+':'+mm; opts+='<option value="'+t+'"'+(time===t?' selected':'')+'>'+t+'</option>'; });
   document.getElementById('modalBox').innerHTML=
     '<div class="mtitle">'+(STATE._schedRow?'予定を編集':'予定を追加')+'</div>'+
     '<div class="mscope">時間：<select id="schTime" class="minput" style="width:auto;margin:0;padding:8px 12px">'+opts+'</select></div>'+
@@ -1177,8 +1188,8 @@ function pathOf(n){ // 祖先のテキストを「タブ › 親 › …」で
   parts.unshift(tabName(n.tab));
   return parts.filter(Boolean).join(' › ');
 }
-function isFlagged(n){ return n.daily||n.today; }
-function dailyDone(n){ return n.daily ? STATE.todayChecks.indexOf(n.id)>=0 : !!n.done; }
+function isFlagged(n){ return !!n.today; }   // ★定期は廃止（❀その日のみ）
+function dailyDone(n){ return !!n.done; }
 function subtreeHasFlag(n){ if(isFlagged(n))return true; return STATE.nodes.some(function(c){return c.parentId===n.id&&subtreeHasFlag(c);}); }
 function renderDaily(){
   var flagged=STATE.nodes.filter(isFlagged);
@@ -1191,9 +1202,8 @@ function renderDaily(){
     '<div class="count">'+doneN+' / '+total+'</div></div>';
   html+='<div class="progress"><div class="ring" style="--p:'+pct+'"><i>'+pct+'%</i></div>'+
     '<div class="pmsg">'+esc(msg)+'<small>各項目のマークを押すと、ここに集まります</small></div></div>';
-  html+='<div class="legend"><span>'+markIcon('daily',true)+' 定期（毎日リセット）</span><span>'+markIcon('today',true)+' その日（一度きり）</span></div>';
   if(total===0){
-    html+='<div class="empty">項目の右の ☆ を押して ★定期 / ❀その日 を付けてください<span class="sw">tap a mark ☆</span></div>';
+    html+='<div class="empty">項目の右の ❀ を押して その日 のマークを付けてください<span class="sw">tap a mark ❀</span></div>';
   }else{
     STATE.tabs.forEach(function(t){
       if(!STATE.nodes.some(function(n){return n.tab===t.id&&isFlagged(n);}))return;
@@ -1217,11 +1227,12 @@ function renderDailyTree(tabId,parentId,depth){
 }
 function dailyCheckRow(n){
   var on=dailyDone(n);
-  var kind=n.daily?'daily':'today';
-  var ico='<button class="ico '+kind+'" title="タップでマークを外す（リストから外れます）" onclick="unmarkNode(\''+jsq(n.id)+'\')">'+markIcon(kind,true)+'</button>';
+  var ico='<button class="ico today" title="タップでマークを外す（リストから外れます）" onclick="unmarkNode(\''+jsq(n.id)+'\')">'+markIcon('today',true)+'</button>';
+  // 今日の予定タブでは項目名タップ＝時間を選んで予定に組み込む
+  var inSch=(STATE.active===SCHEDULE);
   return '<div class="dchk'+(on?' done':'')+'">'+
     '<div class="check'+(on?' on':'')+'" onclick="toggleDailyCheck(\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>'+
-    ico+'<span class="t">'+linkify(n.text)+'</span></div>';
+    ico+(inSch?'<span class="t tpick" title="タップで時間を選んで予定に入れる" onclick="schedFromTask(\''+jsq(n.id)+'\')">'+esc(n.text)+'<span class="tadd">🕐＋</span></span>':'<span class="t">'+linkify(n.text)+'</span>')+'</div>';
 }
 // ❀その日マークを全部外す：ダブルクリック（2回タップ）で確定。1回だけなら案内のみ
 var _clrTodayAt=0;
@@ -1240,7 +1251,7 @@ function clearTodayMarksTap(){
 function unmarkNode(id){
   var n=byId(id); if(!n) return;
   snap();
-  var was=n.daily?'★定期':'❀その日';
+  var was='❀その日';
   n.daily=false; n.today=false;
   renderView();
   call('updateNode',[id,'daily',false]).catch(failNote);
@@ -1249,15 +1260,9 @@ function unmarkNode(id){
 }
 function toggleDailyCheck(id){
   var n=byId(id);if(!n)return;
-  if(n.daily){
-    var i=STATE.todayChecks.indexOf(id);var now=i<0;
-    if(now)STATE.todayChecks.push(id);else STATE.todayChecks.splice(i,1);
-    call('setDailyCheck',[id,STATE.today,now]).catch(failNote);
-  }else{
-    n.done=!n.done;
-    call('updateNode',[id,'done',n.done]).catch(failNote);
-  }
-  renderDaily();
+  n.done=!n.done;
+  call('updateNode',[id,'done',n.done]).catch(failNote);
+  renderView();
   var flagged=STATE.nodes.filter(isFlagged);
   if(flagged.length&&flagged.every(dailyDone)) toast('すべて完了！おつかれさまでした ✦');
 }
@@ -1306,7 +1311,7 @@ function printKids(tabId,parentId){
   var h='<ul class="ptree">';
   kids.forEach(function(n){
     var box=n.done?'☑':'☐';
-    var mk=n.daily?'<span class="pmk pd">定期</span>':n.today?'<span class="pmk pt">その日</span>':'';
+    var mk=n.today?'<span class="pmk pt">その日</span>':'';
     h+='<li><span class="pbox">'+box+'</span><span class="ptx'+(n.done?' pdone':'')+'">'+linkify(n.text)+'</span>'+mk+printKids(tabId,n.id)+'</li>';
   });
   return h+'</ul>';
