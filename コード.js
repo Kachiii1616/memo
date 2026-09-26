@@ -82,8 +82,10 @@ function repairTabIds() {
 const CONFIG = {
   // 保存先。ID/URL を入れると固定。空''なら バウンドのアクティブブック →
   // 無ければ「ToDoメモ」を自動作成して記憶。
-  // ★データのある本物のブックに固定（別の空ブックを見てしまう事故の防止）。
-  SS_ID: '1Rpfxi5N6AqtXCKasAIuE6immS8CC4cCgfoYM2Pe_S8s',
+  // 2026-09 個人アカウントへ移行：保存先は Script Property 'SS_ID'（初回に旧データを複製して記憶）。
+  SS_ID: '',
+  // 移行元（旧・会社アカウントの本物のブック）。共有されていれば初回に自分のドライブへ複製する。
+  OLD_SS_ID: '1Rpfxi5N6AqtXCKasAIuE6immS8CC4cCgfoYM2Pe_S8s',
   TAB_SHEET: 'タブ',
   NODE_SHEET: 'ノード',
   CHECK_SHEET: '今日のチェック',
@@ -166,8 +168,9 @@ function getScheduleSS_() {
   const id = props.getProperty('SCHEDULE_SS_ID');
   if (id) { try { return SpreadsheetApp.openById(id); } catch (e) { /* 消えていたら作り直す */ } }
   try {
-    const it = DriveApp.getFilesByName('ToDoスケジュール');
-    if (it.hasNext()) { const f = it.next(); props.setProperty('SCHEDULE_SS_ID', f.getId()); return SpreadsheetApp.openById(f.getId()); }
+    // 旧アカウントから共有された／アップロードした「ToDoスケジュール」があれば、自分のものでなければ複製して使う（予定の履歴＝学習も移行）
+    const f = findMigrationSource_('ToDoスケジュール', '');
+    if (f) { const mine = isMine_(f) ? f : f.makeCopy('ToDoスケジュール'); props.setProperty('SCHEDULE_SS_ID', mine.getId()); return SpreadsheetApp.openById(mine.getId()); }
   } catch (e) { /* Drive検索不可ならそのまま作成 */ }
   const ss = SpreadsheetApp.create('ToDoスケジュール');
   props.setProperty('SCHEDULE_SS_ID', ss.getId());
@@ -910,14 +913,32 @@ function readChecksForDate_(date) {
 // ===== シート確保・初期シード ===============================================
 function getSS_() {
   if (CONFIG.SS_ID) return SpreadsheetApp.openById(idFromUrl_(CONFIG.SS_ID));
-  const active = SpreadsheetApp.getActiveSpreadsheet();
-  if (active) return active;
   const props = PropertiesService.getScriptProperties();
   const id = props.getProperty('SS_ID');
-  if (id) { try { return SpreadsheetApp.openById(id); } catch (e) { /* 消えていたら作り直す */ } }
-  const ss = SpreadsheetApp.create('ToDoメモ');
-  props.setProperty('SS_ID', ss.getId());
-  return ss;
+  if (id) { try { return SpreadsheetApp.openById(id); } catch (e) { /* 消えていたら移行元から取り直す */ } }
+  // 移行：旧ブック（共有されたもの or アップロードしたもの）を探し、自分のものでなければ複製して使う。
+  // 見つからないまま空のブックを作ると移行できなくなるので、作らずに案内を出す。
+  const f = findMigrationSource_('ToDoメモ', CONFIG.OLD_SS_ID);
+  if (!f) throw new Error('旧memoのデータ（スプレッドシート「ToDoメモ」）が見つかりません。' +
+    '会社アカウントから「ToDoメモ」をこのアカウントに共有するか、ダウンロードしてこのアカウントのドライブにアップロードしてください。');
+  const file = isMine_(f) ? f : f.makeCopy('ToDoメモ');
+  props.setProperty('SS_ID', file.getId());
+  return SpreadsheetApp.openById(file.getId());
+}
+// 移行元のスプレッドシートを探す：①旧ID ②名前（共有アイテム・アップロードした .xlsx 変換分を含む）。自分のものを優先。
+function findMigrationSource_(name, oldId) {
+  if (oldId) { try { const f = DriveApp.getFileById(oldId); if (!f.isTrashed()) return f; } catch (e) { /* 共有されていない */ } }
+  const it = DriveApp.searchFiles('title contains "' + name + '" and mimeType = "application/vnd.google-apps.spreadsheet" and trashed = false');
+  let mine = null, other = null;
+  while (it.hasNext()) {
+    const f = it.next();
+    if (!/^ToDo/.test(f.getName()) || f.getName().replace(/\.xlsx$/, '') !== name) continue;
+    if (isMine_(f)) { if (!mine) mine = f; } else if (!other) other = f;
+  }
+  return mine || other;
+}
+function isMine_(f) {
+  try { const o = f.getOwner(); return !!o && o.getEmail() === Session.getEffectiveUser().getEmail(); } catch (e) { return false; }
 }
 
 function ensureSheet_(name, headers) {
