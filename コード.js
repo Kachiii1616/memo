@@ -86,6 +86,7 @@ const CONFIG = {
   SS_ID: '',
   // 移行元（旧・会社アカウントの本物のブック）。共有されていれば初回に自分のドライブへ複製する。
   OLD_SS_ID: '1Rpfxi5N6AqtXCKasAIuE6immS8CC4cCgfoYM2Pe_S8s',
+  OLD_SCHEDULE_SS_ID: '1OfWK-zlvh03zl4u4TC29ZGq7c8I5qjKQaXQ1mQzggMw',   // 旧「ToDoスケジュール」
   TAB_SHEET: 'タブ',
   NODE_SHEET: 'ノード',
   CHECK_SHEET: '今日のチェック',
@@ -169,7 +170,7 @@ function getScheduleSS_() {
   if (id) { try { return SpreadsheetApp.openById(id); } catch (e) { /* 消えていたら作り直す */ } }
   try {
     // 旧アカウントから共有された／アップロードした「ToDoスケジュール」があれば、自分のものでなければ複製して使う（予定の履歴＝学習も移行）
-    const f = findMigrationSource_('ToDoスケジュール', '');
+    const f = findMigrationSource_('ToDoスケジュール', CONFIG.OLD_SCHEDULE_SS_ID);
     if (f) { const mine = isMine_(f) ? f : f.makeCopy('ToDoスケジュール'); props.setProperty('SCHEDULE_SS_ID', mine.getId()); return SpreadsheetApp.openById(mine.getId()); }
   } catch (e) { /* Drive検索不可ならそのまま作成 */ }
   const ss = SpreadsheetApp.create('ToDoスケジュール');
