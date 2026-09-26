@@ -1283,7 +1283,7 @@ function renderDailyTree(tabId,parentId,depth){
     else if(STATE.active===SCHEDULE){
       var pt=schTimesOf(n.text);
       h+='<div class="dctx s'+Math.min(depth,1)+(pt.length?' insch':'')+'"><span class="tpick" title="タップで時間を選んで予定に入れる（下の項目もまとめて表示）" onclick="schedFromTask(\''+jsq(n.id)+'\')">'+esc(n.text)+
-        (pt.length?schPill(pt,''):'<span class="tadd">🕐＋</span>')+'</span></div>';
+        (pt.length?schPill(pt,''):'<span class="tadd">🕐</span>')+'</span></div>';
     }
     else h+='<div class="dctx s'+Math.min(depth,1)+'">'+linkify(n.text)+'</div>';
     var sub=renderDailyTree(tabId,n.id,depth+1);
@@ -1298,7 +1298,7 @@ function dailyCheckRow(n){
   var inSch=(STATE.active===SCHEDULE), st=inSch?schTimeFor(n):null;
   return '<div class="dchk'+(on?' done':'')+(st?' insch':'')+'">'+
     '<div class="check'+(on?' on':'')+'" onclick="toggleDailyCheck(\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>'+
-    ico+(inSch?'<span class="t tpick" title="タップで時間を選んで予定に入れる" onclick="schedFromTask(\''+jsq(n.id)+'\')">'+esc(n.text)+(st?schPill(st.times,st.via):'<span class="tadd">🕐＋</span>')+'</span>':'<span class="t">'+linkify(n.text)+'</span>')+'</div>';
+    ico+(inSch?'<span class="t tpick" title="タップで時間を選んで予定に入れる" onclick="schedFromTask(\''+jsq(n.id)+'\')">'+esc(n.text)+(st?schPill(st.times,st.via):'<span class="tadd">🕐</span>')+'</span>':'<span class="t">'+linkify(n.text)+'</span>')+'</div>';
 }
 // ❀その日マークを全部外す：ダブルクリック（2回タップ）で確定。1回だけなら案内のみ
 var _clrTodayAt=0;
