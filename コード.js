@@ -297,7 +297,7 @@ function generateSchedule(opts) {
 function autoPickAndSchedule(opts) {
   return withLock_(function () {
     opts = opts || {};
-    const picked = autoPickTasks_();
+    const picked = autoPickTasks_(opts.date);
     const res = buildSchedule_(opts);
     res.picked = picked.map(function (n) { return n.text; });
     return res;
@@ -343,16 +343,17 @@ function schedHelpers_() {
 // 「今の時刻からでもできること」をリストから選んで ❀（その日）を付ける。選んだノードを返す。
 // 連絡＝平日9〜17時／買い物・お出かけ＝20時まで／家事＝21時まで／デスクワーク等＝22時まで。
 // お仕事タブと定期購入タブ（買い物リストで管理）は対象外。今から22時までの残り枠ぶんだけ選ぶ。
-function autoPickTasks_() {
+function autoPickTasks_(date) {
   const H = schedHelpers_();
-  const now = new Date();
+  const isToday = !date || date === todayStr_();
+  const now = isToday ? new Date() : new Date(String(date).replace(/-/g, '/') + ' 07:00');  // 今日以外は7時から丸一日
   const hour = now.getHours() + now.getMinutes() / 60;
   const wd = now.getDay();
   const weekday = (wd >= 1 && wd <= 5);
 
   let startM = Math.ceil((now.getHours() * 60 + now.getMinutes()) / 30) * 30; if (startM < 7 * 60) startM = 7 * 60;
   let left = 22 * 60 - startM - (startM < 13 * 60 ? 60 : 0);   // 今から22時までの残り分（昼休憩ぶんを除く）
-  H.nodes.forEach(function (n) { if (n.today && !H.hasKids[n.id]) left -= H.duration(n); });  // マーク済みの所要時間
+  H.nodes.forEach(function (n) { if (n.today && !n.done && !H.hasKids[n.id]) left -= H.duration(n); });  // マーク済みの所要時間
   if (left <= 0) return [];
 
   function doableNow(n) {
@@ -378,34 +379,104 @@ function autoPickTasks_() {
   return picked;
 }
 
+// 過去の予定表から「実施した（完了にした）予定」を学習する。
+// 予定名ごとに：いつもの開始時刻（平均）・所要時間（次の予定までの間隔の中央値）・実施日数・メモ。
+// 対象は target 日より前の日付タブ（新しい順に最大30日分）。
+function learnSchedule_(target) {
+  const ss = getScheduleSS_();
+  const dates = scheduleDates_(ss).filter(function (d) { return d < target; }).slice(0, 30);
+  const L = {};
+  dates.forEach(function (d) {
+    const sh = ss.getSheetByName(d); if (!sh) return;
+    const last = sh.getLastRow(); if (last < 2) return;
+    const v = sh.getRange(2, 1, last - 1, Math.min(4, Math.max(4, sh.getLastColumn()))).getValues()
+      .map(function (r) { return { t: schedTimeKey_(r[0]), title: String(r[1] || '').trim(), memo: String(r[2] || ''), done: /^(true|1|✓|done|済|はい)$/i.test(String(r[3] || '').trim()) }; })
+      .filter(function (r) { return r.title && r.t < 100000; })
+      .sort(function (x, y) { return x.t - y.t; });
+    v.forEach(function (r, i) {
+      if (!r.done || /昼食・休憩|項目がありません/.test(r.title)) return;
+      const next = v[i + 1];
+      let dur = next ? next.t - r.t : 0;
+      dur = (dur >= 15 && dur <= 180) ? Math.max(30, Math.round(dur / 30) * 30) : 0;
+      const e = L[r.title] || (L[r.title] = { days: {}, starts: [], durs: [], memo: '' });
+      e.days[d] = true; e.starts.push(r.t); if (dur) e.durs.push(dur);
+      if (!e.memo) e.memo = r.memo;   // 新しい日付のメモを優先
+    });
+  });
+  Object.keys(L).forEach(function (k) {
+    const e = L[k];
+    e.count = Object.keys(e.days).length;
+    e.start = Math.round(e.starts.reduce(function (a, b) { return a + b; }, 0) / e.starts.length / 30) * 30;
+    const ds = e.durs.slice().sort(function (a, b) { return a - b; });
+    e.dur = ds.length ? ds[Math.floor(ds.length / 2)] : 0;
+  });
+  return L;
+}
+function hhmm_(m) { const h = Math.floor(m / 60), mm = m % 60; return (h < 10 ? '0' : '') + h + ':' + (mm < 10 ? '0' : '') + mm; }
+
 // 時間割の本体（ロックは呼び出し側で取る）
+// 学習あり：過去に実施した予定は「いつもの時刻・所要時間」で置く。2日以上実施した予定は❀が無くても「いつもの予定」として入れる。
+// 学習なし：優先順（家事→連絡→期限→買い物→エリア順）で空いている時間へ詰める。
 function buildSchedule_(opts) {
   const date = opts.date || todayStr_();
   const slot = Number(opts.slot) || 60;
   const H = schedHelpers_();
-  const tasks = H.nodes.filter(function (n) { return n.today && !H.hasKids[n.id]; });
+  const L = learnSchedule_(date);
+  const tasks = H.nodes.filter(function (n) { return n.today && !n.done && !H.hasKids[n.id]; });
   tasks.sort(function (a, b) { const ra = H.rank(a), rb = H.rank(b); if (ra !== rb) return ra - rb; return (a.order || 0) - (b.order || 0); });
 
-  const now = new Date();
-  let mins = now.getHours() * 60 + now.getMinutes();
-  mins = Math.ceil(mins / 30) * 30; // 次の30分ちょうどに丸め
-  if (mins < 7 * 60) mins = 7 * 60;  // 早朝は7:00スタート
-  const rows = [['時間', '予定', 'メモ', '完了', 'link']];
-  let lunch = false;
-  tasks.forEach(function (n) {
-    if (mins >= 22 * 60) return; // 22時以降は入れない
-    if (!lunch && mins >= 12 * 60 && mins < 13 * 60) { rows.push([mins === 12 * 60 ? '12:00' : '12:30', '昼食・休憩', '', '', '']); mins = 13 * 60; }
-    if (mins >= 12 * 60) lunch = true;
-    const hh = Math.floor(mins / 60), mm = mins % 60;
-    const time = (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+  let startM = 7 * 60;                         // 今日以外の日付は7:00から
+  if (date === todayStr_()) {
+    const now = new Date();
+    startM = Math.max(7 * 60, Math.ceil((now.getHours() * 60 + now.getMinutes()) / 30) * 30); // 次の30分ちょうど
+  }
+  const busy = {};                             // 30分単位の埋まり（キー＝分）
+  function free(s, d) { for (let m = s; m < s + d; m += 30) if (busy[m]) return false; return true; }
+  function take(s, d) { for (let m = s; m < s + d; m += 30) busy[m] = true; }
+  function findSlot(from, d, endLimit) { for (let m = from; m + d <= endLimit; m += 30) if (free(m, d)) return m; return -1; }
+  const out = [];                              // {m, title, memo}
+  if (startM < 13 * 60) { const lm = Math.max(12 * 60, startM); take(lm, 13 * 60 - lm); out.push({ m: lm, title: '昼食・休憩', memo: '' }); }
+
+  function tagsOf(n, dur, learned) {
     const tags = [H.tabName[n.tab] || ''];
     if (H.isKaji(n)) tags.push('家事'); else if (H.isRenraku(n)) tags.push('連絡'); else if (H.hasDeadline(n)) tags.push('期限'); else if (H.isKaimono(n)) tags.push('買い物');
-    const dur = Math.min(slot, H.duration(n)); // 30分で終わりそうなものは30分
     tags.push(dur + '分');
-    rows.push([time, n.text, tags.filter(Boolean).join(' / '), '', '']);
-    mins += dur;
+    if (learned) tags.push('いつも' + hhmm_(learned.start) + '頃');
+    return tags.filter(Boolean).join(' / ');
+  }
+  // ① 学習済みの❀タスク＋いつもの予定（いつもの時刻順）
+  const pref = [], plain = [], have = {};
+  tasks.forEach(function (n) {
+    have[n.text] = true;
+    const e = L[n.text];
+    const dur = (e && e.dur) || Math.min(slot, H.duration(n));
+    if (e) pref.push({ start: e.start, dur: dur, title: n.text, memo: tagsOf(n, dur, e) });
+    else plain.push({ dur: dur, title: n.text, memo: tagsOf(n, dur, null) });
   });
-  if (rows.length === 1) rows.push(['—', '今日の ❀ 項目がありません', 'まず項目に ❀ を付けてください', '', '']);
+  Object.keys(L).forEach(function (title) {
+    const e = L[title];
+    if (have[title] || e.count < 2 || e.start < startM) return;
+    const tab = String(e.memo || '').split('/')[0].trim();
+    const isTab = H.tabs.some(function (t) { return t.name === tab; });
+    const dur = e.dur || 60;
+    pref.push({ start: e.start, dur: dur, title: title, memo: [isTab ? tab : '', dur + '分', 'いつもの予定（' + e.count + '日）'].filter(Boolean).join(' / ') });
+  });
+  pref.sort(function (a, b) { return a.start - b.start; });
+  pref.forEach(function (it) {
+    const m = findSlot(Math.max(it.start, startM), it.dur, 24 * 60);
+    if (m < 0) return;
+    take(m, it.dur); out.push({ m: m, title: it.title, memo: it.memo });
+  });
+  // ② 学習の無い❀タスクは優先順で空き時間へ（22時まで）
+  plain.forEach(function (it) {
+    const m = findSlot(startM, it.dur, 22 * 60);
+    if (m < 0) return;
+    take(m, it.dur); out.push({ m: m, title: it.title, memo: it.memo });
+  });
+  out.sort(function (a, b) { return a.m - b.m; });
+  const rows = [['時間', '予定', 'メモ', '完了', 'link']];
+  out.forEach(function (o) { rows.push([hhmm_(o.m), o.title, o.memo, '', '']); });
+  if (rows.length === 1 || (rows.length === 2 && rows[1][1] === '昼食・休憩')) rows.push(['—', '❀ 項目がありません', 'まず項目に ❀ を付けてください', '', '']);
 
   const ss = getScheduleSS_();
   let sh = ss.getSheetByName(date);

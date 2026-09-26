@@ -112,7 +112,9 @@
   .ovtext{padding:4px 2px}
   .ovtext p{margin:4px 0;line-height:1.7;font-size:14px}
   .ovtext .ovsp{height:8px}
-  .datebar{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 6px}
+  .datebar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 0 6px}
+  .datepick{display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--sub)}
+  .datepick input{font:inherit;font-size:13px;color:var(--ink);border:1px solid var(--line);background:var(--paper2);border-radius:8px;padding:3px 8px}
   /* 予定タイムライン */
   .schlist{margin:8px 0 2px}
   .schitem{display:flex;gap:10px;padding:11px 2px;border-top:1px solid #ece6da}
@@ -701,28 +703,29 @@ function loadSchedule(){
 function pickScheduleDate(date){ STATE.scheduleDate=date; STATE.schedule=null; renderSchedule(); }
 function makeSchedule(){
   var d=STATE.schedule;
-  var has=d && d.rows && d.rows.length>1 && (d.date||STATE.scheduleDate)===STATE.today;
-  if(has) openConfirm('今日の予定を作り直しますか？\n（今の予定表は上書きされます）', doMakeSchedule);
+  var has=d && d.rows && d.rows.length>1;
+  if(has) openConfirm(schDateLabel()+'の予定を作り直しますか？\n（今の予定表は上書きされます）', doMakeSchedule);
   else doMakeSchedule();
 }
+function schDateLabel(){ var d=STATE.scheduleDate||STATE.today; return d===STATE.today?'今日':d.slice(5).replace('-','/'); }
 function doMakeSchedule(){
   toast('予定を作成中…');
-  call('generateSchedule',[{date:STATE.today, slot:60}]).then(function(d){
+  call('generateSchedule',[{date:STATE.scheduleDate||STATE.today, slot:60}]).then(function(d){
     STATE.schedule=d; STATE.scheduleDate=(d&&d.date)||STATE.today;
     if(STATE.active===SCHEDULE) renderSchedule();
-    toast('今日の予定を立てました（30分で済むものは30分）');
+    toast(schDateLabel()+'の予定を立てました（実施した予定の時刻・時間を反映）');
   }).catch(failNote);
 }
 // 🎯 リストから「今からできること」を自動で選んで❀を付け、そのまま予定を作成
 function autoPickSchedule(){
   var d=STATE.schedule;
-  var has=d && d.rows && d.rows.length>1 && (d.date||STATE.scheduleDate)===STATE.today;
+  var has=d && d.rows && d.rows.length>1;
   if(has) openConfirm('リストから「今からできること」を自動で選んで ❀ を付け、予定を作り直します。\n（今の予定表は上書きされます）', doAutoPickSchedule);
   else doAutoPickSchedule();
 }
 function doAutoPickSchedule(){
   toast('タスクを選んで予定を作成中…');
-  call('autoPickAndSchedule',[{date:STATE.today, slot:60}]).then(function(d){
+  call('autoPickAndSchedule',[{date:STATE.scheduleDate||STATE.today, slot:60}]).then(function(d){
     STATE.schedule=d; STATE.scheduleDate=(d&&d.date)||STATE.today;
     var picked=(d&&d.picked)||[];
     // サーバ側で❀が付いたので、タスク一覧も読み直してから描画
@@ -793,26 +796,26 @@ function renderSchedule(){
   var msg=total===0?'予定がまだありません':(doneN===total?'すべて完了！おつかれさまでした':'あと '+(total-doneN)+' 件');
 
   STATE.schedBlocks=blocks;
-  var html='<div class="card"><div class="card-head"><div class="card-title">📅 今日の予定<span class="en">'+esc(date)+esc(nowStr)+'</span></div>'+
+  var html='<div class="card"><div class="card-head"><div class="card-title">📅 '+(date===STATE.today?'今日の予定':esc(date.slice(5).replace('-','/'))+'（'+['日','月','火','水','木','金','土'][new Date(date.replace(/-/g,'/')).getDay()]+'）の予定')+'<span class="en">'+esc(date)+esc(nowStr)+'</span></div>'+
     '<button class="tbtn" onclick="STATE.schedule=null;renderSchedule();">↻ 更新</button></div>';
   html+='<div class="progress"><div class="ring" style="--p:'+pct+'"><i>'+pct+'%</i></div>'+
     '<div class="pmsg">'+esc(msg)+'<small>'+doneN+' / '+total+' 完了</small></div></div>';
   html+='<div class="shoprow"><button class="shopopen" onclick="autoPickSchedule()">🎯 自動で選んで作成</button>'+
     '<button class="shopopen" onclick="openPasteSchedule()">✏️ 貼り付け</button></div>'+
     '<div class="shophint" style="margin:4px 2px 0">🎯＝リストから「今からできること」も自動で選んで❀を付けてから予定を作成</div>';
-  var dates=d.dates||[];
-  if(dates.length){
-    html+='<div class="datebar">';
-    dates.forEach(function(dt){ html+='<button class="chip'+(dt===date?' on':'')+'" onclick="pickScheduleDate(\''+jsq(dt)+'\')">'+esc(dt.slice(5))+'</button>'; });
-    html+='</div>';
-  }
+  // 日付えらび：カレンダーで好きな日を選べる（先の日の予定も作れる）＋作成済みの日のチップ
+  var dates=(d.dates||[]).slice(0,10);
+  html+='<div class="datebar"><label class="datepick">📆 <input type="date" value="'+esc(date)+'" onchange="if(this.value)pickScheduleDate(this.value)"></label>'+
+    (date!==STATE.today?'<button class="chip" onclick="pickScheduleDate(STATE.today)">今日へ</button>':'');
+  dates.forEach(function(dt){ html+='<button class="chip'+(dt===date?' on':'')+'" onclick="pickScheduleDate(\''+jsq(dt)+'\')">'+esc(dt.slice(5))+'</button>'; });
+  html+='</div>';
   // ✦ 今日マークしたタスク（時間割の上に表示。押すとmemo本体も完了・❀タップで解除・項目名タップで予定へ）
   if(flagged.length){
     var todayN=flagged.filter(function(n){return n.today;}).length;
     html+='<div class="schsub" style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:8px">✦ 今日マークしたタスク'+
       (todayN?'<button class="tbulk" title="ダブルクリック（2回タップ）で確定" onclick="clearTodayMarksTap()" ondblclick="event.preventDefault()">'+markIcon('today',true)+' 全部外す（'+todayN+'）</button>':'')+'</div>';
     html+='<div class="shoprow" style="margin-top:4px"><button class="shopopen" onclick="makeSchedule()">🪄 このリストから予定を自動作成</button></div>'+
-      '<div class="shophint" style="margin:2px 2px 6px">項目名をタップ＝時間を選んで予定に入れる ／ 🪄＝下の ❀ 全部を並べて予定表を作り直す（30分で済むものは30分・ほかは1時間）</div>';
+      '<div class="shophint" style="margin:2px 2px 6px">項目名をタップ＝時間を選んで予定に入れる ／ 🪄＝下の ❀ 全部を並べて予定表を作り直す（実施した予定はいつもの時刻・時間で／2日以上実施した予定は自動で入る）</div>';
     STATE.tabs.forEach(function(t){
       if(!STATE.nodes.some(function(n){return n.tab===t.id&&isFlagged(n);}))return;
       html+='<div class="group-label">'+esc(t.name)+'</div>'+renderDailyTree(t.id,'',0);
@@ -921,6 +924,7 @@ function schedFromTask(id){
   var n=byId(id); if(!n) return;
   var used={}; (STATE.schedBlocks||[]).forEach(function(b){ used[String(b.time).slice(0,5)]=true; });
   var nd=new Date(), m=Math.ceil((nd.getHours()*60+nd.getMinutes())/30)*30;
+  if((STATE.scheduleDate||STATE.today)!==STATE.today) m=7*60;
   if(m<5*60) m=5*60;
   while(m<=23*60+30 && used[pad2(Math.floor(m/60))+':'+pad2(m%60)]) m+=30;
   if(m>23*60+30) m=23*60+30;
