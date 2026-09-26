@@ -186,7 +186,7 @@
   .tbulk:hover{border-color:var(--rose);color:var(--ink)}
   .dchk .tpick,.dctx .tpick{cursor:pointer;border-radius:6px}
   .dctx .tpick:hover{background:#f3ebe6}
-  .stime{flex:none;min-width:21px;margin-top:2px;font-size:11.5px;font-weight:600;color:#5f7d5a;background:#e9efe3;
+  .stime{flex:none;min-width:21px;white-space:nowrap;margin-top:2px;font-size:11.5px;font-weight:600;color:#5f7d5a;background:#e9efe3;
     border:1px solid #cfdcc6;border-radius:7px;padding:0 5px;line-height:1.6;font-family:'Zen Kaku Gothic New',sans-serif;letter-spacing:.02em}
   .stime{cursor:pointer} .stime:hover{background:#f3dede;border-color:#e3bcbc;color:#b0555a}
   .dctx .stime{display:inline-block;margin:0 6px 0 0;vertical-align:1px}
@@ -868,7 +868,7 @@ function schChildrenHtml(b){
 }
 // 予定に入っている時刻（内容＝項目名が一致するもの）
 function schTimesOf(n){
-  return schBlocksOf(n).map(function(b){return String(b.time).slice(0,5);});
+  return schBlocksOf(n).map(function(b){ var t=String(b.time).slice(0,5); return b.date?(+b.date.slice(5,7))+'/'+(+b.date.slice(8))+' '+t:t; });
 }
 // 予定と項目の対応：名前が同じ＋メモ先頭のタブ名（「生活 / 家事 / 30分」の「生活」）が項目のタブと一致
 // メモにタブ名が無い予定（手入力など）は名前だけで判定。ただし定期購入タブは対象外
@@ -894,10 +894,21 @@ function unscheduleNode(id){
   while(!bl.length && target.parentId && g++<20){ target=byId(target.parentId); if(!target) return; bl=schBlocksOf(target); }
   if(!bl.length) return;
   var b=bl[0];
+  if(b.date && b.date!==(STATE.scheduleDate||STATE.today)){   // ほかの日の予定：その日に切り替えてから編集画面
+    STATE.scheduleDate=b.date; STATE.schedule=null; document.getElementById('view').innerHTML='<div class="loading">よみこみ中…</div>';
+    call('getSchedule',[b.date]).then(function(d){ STATE.schedule=d; renderSchedule(); unscheduleNode(id); }).catch(failNote);
+    return;
+  }
   openScheduleEdit(b.sheetRow,b.time,b.title,b.memo);
   if(target!==n){ var t=document.querySelector('#modalBox .mtitle'); if(t) t.insertAdjacentHTML('afterend','<div class="mdesc" style="margin:-4px 0 8px">「'+esc(target.text)+'」の予定としてまとめて入っています</div>'); }
 }
-function schBlocksOf(n){ return (STATE.schedBlocks||[]).filter(function(b){return schMatch(b,n);}); }
+// 表示中の日の予定を優先。無ければ今日以降のほかの日の予定（日付つき）を引き継いで出す
+function schBlocksOf(n){
+  var cur=(STATE.schedBlocks||[]).filter(function(b){return schMatch(b,n);});
+  if(cur.length) return cur;
+  var idx=(STATE.schedule&&STATE.schedule.index)||[];
+  return idx.filter(function(b){return schMatch(b,n);});
+}
 // 時刻文字列から「時」を取り出す（読めなければnull）
 function schHour(t){ var m=String(t||'').match(/^(\d{1,2})[:：](\d{2})/); return m?+m[1]:null; }
 // 空き枠1行。plus=true なら右端に「＋」（その時間の30分の欄を追加）

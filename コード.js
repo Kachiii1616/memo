@@ -184,7 +184,7 @@ function getSchedule(dateStr) {
   const ss = getScheduleSS_();
   const dates = scheduleDates_(ss);
   const sh = ss.getSheetByName(date);
-  const base = { date: date, dates: dates, url: ss.getUrl(), name: ss.getName() };
+  const base = { date: date, dates: dates, url: ss.getUrl(), name: ss.getName(), index: scheduleIndex_(ss, dates, date) };
   if (!sh) return Object.assign({ empty: true }, base);
   const last = sh.getLastRow(), lastc = sh.getLastColumn();
   if (last < 1 || lastc < 1) return Object.assign({ empty: true }, base);
@@ -194,6 +194,19 @@ function getSchedule(dateStr) {
       return (c === null || c === undefined) ? '' : String(c);
     }); });
   return Object.assign({ rows: rows }, base);
+}
+// 今日以降のほかの日付の予定一覧（リストで「どの日に時間を入れたか」を日付をまたいで出すため）
+function scheduleIndex_(ss, dates, except) {
+  const today = todayStr_(), out = [];
+  dates.filter(function (d) { return d >= today && d !== except; }).slice(0, 14).forEach(function (d) {
+    const sh = ss.getSheetByName(d); if (!sh) return;
+    const last = sh.getLastRow(); if (last < 2) return;
+    sh.getRange(2, 1, last - 1, 3).getValues().forEach(function (r, i) {
+      const title = String(r[1] || '').trim(); if (!title) return;
+      out.push({ date: d, sheetRow: i + 2, time: schedTimeStr_(r[0]), title: title, memo: String(r[2] || '') });
+    });
+  });
+  return out;
 }
 // 保存先スプレッドシートのURL/名前だけ取得（案内表示用）
 function getScheduleInfo() {
