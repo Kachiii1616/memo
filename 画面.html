@@ -184,9 +184,10 @@
   .tbulk:hover{border-color:var(--rose);color:var(--ink)}
   .dchk .tpick,.dctx .tpick{cursor:pointer;border-radius:6px}
   .dctx .tpick:hover{background:#f3ebe6}
-  .schset{display:inline-block;font-size:11px;color:#5f7d5a;background:#e9efe3;border:1px solid #cfdcc6;border-radius:8px;
-    padding:0 7px;margin-left:6px;white-space:nowrap;vertical-align:1px;font-family:'Zen Kaku Gothic New',sans-serif}
-  .dchk.insch .check{border-color:#9fb896}
+  .stime{flex:none;min-width:21px;margin-top:2px;font-size:11.5px;font-weight:600;color:#5f7d5a;background:#e9efe3;
+    border:1px solid #cfdcc6;border-radius:7px;padding:0 5px;line-height:1.6;font-family:'Zen Kaku Gothic New',sans-serif;letter-spacing:.02em}
+  .dctx .stime{display:inline-block;margin:0 6px 0 0;vertical-align:1px}
+  .dchk span.t.sched,.dctx .sched{text-decoration:line-through;text-decoration-color:#9fb896;text-decoration-thickness:1.5px;color:var(--sub)}
   .schkids{margin:4px 0 0;padding-left:2px}
   .schkid{font-size:12.5px;color:#6f675e;line-height:1.5;display:flex;gap:5px;align-items:flex-start}
   .schkid.done{text-decoration:line-through;opacity:.55}
@@ -881,7 +882,6 @@ function schTimeFor(n){
   while(cur&&cur.parentId&&g++<20){ cur=byId(cur.parentId); if(!cur) break; t=schTimesOf(cur); if(t.length) return {times:t,via:cur.text}; }
   return null;
 }
-function schPill(times,via){ return '<span class="schset" title="予定に入っています">✓ '+esc(times.join('・'))+(via?'（'+esc(via)+'）':'')+'</span>'; }
 // 時刻文字列から「時」を取り出す（読めなければnull）
 function schHour(t){ var m=String(t||'').match(/^(\d{1,2})[:：](\d{2})/); return m?+m[1]:null; }
 // 空き枠1行。plus=true なら右端に「＋」（その時間の30分の欄を追加）
@@ -1292,8 +1292,8 @@ function renderDailyTree(tabId,parentId,depth){
     if(isFlagged(n)) h+=dailyCheckRow(n);
     else if(STATE.active===SCHEDULE){
       var pt=schTimesOf(n);
-      h+='<div class="dctx s'+Math.min(depth,1)+(pt.length?' insch':'')+'"><span class="tpick" title="タップで時間を選んで予定に入れる（下の項目もまとめて表示）" onclick="schedFromTask(\''+jsq(n.id)+'\')">'+esc(n.text)+
-        (pt.length?schPill(pt,''):'<span class="tadd">🕐</span>')+'</span></div>';
+      h+='<div class="dctx s'+Math.min(depth,1)+(pt.length?' insch':'')+'"><span class="tpick" title="タップで時間を選んで予定に入れる（下の項目もまとめて表示）" onclick="schedFromTask(\''+jsq(n.id)+'\')">'+
+        (pt.length?'<span class="stime">'+esc(pt[0])+'</span><span class="sched">'+esc(n.text)+'</span>':esc(n.text)+'<span class="tadd">🕐</span>')+'</span></div>';
     }
     else h+='<div class="dctx s'+Math.min(depth,1)+'">'+linkify(n.text)+'</div>';
     var sub=renderDailyTree(tabId,n.id,depth+1);
@@ -1307,8 +1307,10 @@ function dailyCheckRow(n){
   // 今日の予定タブでは項目名タップ＝時間を選んで予定に組み込む
   var inSch=(STATE.active===SCHEDULE), st=inSch?schTimeFor(n):null;
   return '<div class="dchk'+(on?' done':'')+(st?' insch':'')+'">'+
-    '<div class="check'+(on?' on':'')+'" onclick="toggleDailyCheck(\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>'+
-    ico+(inSch?'<span class="t tpick" title="タップで時間を選んで予定に入れる" onclick="schedFromTask(\''+jsq(n.id)+'\')">'+esc(n.text)+(st?schPill(st.times,st.via):'<span class="tadd">🕐</span>')+'</span>':'<span class="t">'+linkify(n.text)+'</span>')+'</div>';
+    // 予定に入れた項目：チェックの丸の代わりに時刻を出し、項目名に横線
+    (st?'<div class="stime" title="予定：'+esc(st.times.join('・'))+(st.via?'（'+esc(st.via)+'）':'')+'">'+esc(st.times[0])+'</div>'
+       :'<div class="check'+(on?' on':'')+'" onclick="toggleDailyCheck(\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>')+
+    ico+(inSch?'<span class="t tpick'+(st?' sched':'')+'" title="タップで時間を選んで予定に入れる" onclick="schedFromTask(\''+jsq(n.id)+'\')">'+esc(n.text)+(st?'':'<span class="tadd">🕐</span>')+'</span>':'<span class="t">'+linkify(n.text)+'</span>')+'</div>';
 }
 // ❀その日マークを全部外す：ダブルクリック（2回タップ）で確定。1回だけなら案内のみ
 var _clrTodayAt=0;
