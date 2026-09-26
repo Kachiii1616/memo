@@ -323,7 +323,7 @@
 <div id="composer" class="composer" style="display:none">
   <div id="cmpsel" class="cmpsel"></div>
   <input id="cmpinput" class="cmpinput" maxlength="200" placeholder="追加する内容を入力" onkeydown="cmpKey(event)">
-  <input id="cmpdl" class="cmpdl" maxlength="40" placeholder="期限（任意：6/30・今週・早め など）" onkeydown="if(event.key==='Enter'){event.preventDefault();composerSubmit();}">
+  <input id="cmpdl" class="cmpdl" maxlength="40" placeholder="期限（任意：6/30・今週・早め など）" onkeydown="dblEnter(event,composerSubmit)">
   <div class="cmpctrl">
     <span class="cmpl">レベル</span>
     <button class="clv" data-l="0" onclick="setCLevel(0)">中タブ</button>
@@ -842,8 +842,8 @@ function openScheduleEdit(sheetRow,time,title,memo){
   document.getElementById('modalBox').innerHTML=
     '<div class="mtitle">'+(STATE._schedRow?'予定を編集':'予定を追加')+'</div>'+
     '<div class="mscope">時間：<select id="schTime" class="minput" style="width:auto;margin:0;padding:8px 12px">'+opts+'</select></div>'+
-    '<input id="schTitle" class="minput" maxlength="100" placeholder="予定（例：買い出し）" value="'+esc(title||'')+'">'+
-    '<input id="schMemo" class="minput" maxlength="200" placeholder="メモ（任意）" value="'+esc(memo||'')+'">'+
+    '<input id="schTitle" class="minput" maxlength="100" placeholder="予定（例：買い出し）" value="'+esc(title||'')+'" onkeydown="dblEnter(event,saveScheduleEdit)">'+
+    '<input id="schMemo" class="minput" maxlength="200" placeholder="メモ（任意）" value="'+esc(memo||'')+'" onkeydown="dblEnter(event,saveScheduleEdit)">'+
     '<button class="mbtn rec" onclick="saveScheduleEdit()">保存</button>'+
     (STATE._schedRow?'<button class="mbtn" onclick="deleteScheduleEntry()">この予定を削除</button>':'')+
     '<button class="mlink" onclick="closeModal()">キャンセル</button>';
@@ -978,7 +978,18 @@ function dropMove(dragId, targetId, mode){
 function setComposerInput(v){ var i=document.getElementById('cmpinput'); if(i) i.value=v||''; }
 function setComposerDeadline(v){ var i=document.getElementById('cmpdl'); if(i) i.value=v||''; }
 function focusComposerInput(){ setTimeout(function(){ var i=document.getElementById('cmpinput'); if(i){ i.focus(); var l=i.value.length; i.setSelectionRange(l,l); } },30); }
-function cmpKey(e){ if(e.key==='Enter'){ e.preventDefault(); composerSubmit(); } else if(e.key==='Escape'){ clearSelection(); } }
+function cmpKey(e){ if(dblEnter(e,composerSubmit)) return; if(e.key==='Escape'){ clearSelection(); } }
+// Enterを2回続けて押したら確定（変換確定のEnterは数えない）。Enterなら true を返す
+var _lastEnter={el:null,t:0};
+function dblEnter(e,fn){
+  if(e.key!=='Enter') return false;
+  if(e.isComposing||e.keyCode===229) return true;   // 日本語変換中の確定Enter
+  e.preventDefault();
+  var now=Date.now();
+  if(_lastEnter.el===e.target && now-_lastEnter.t<700){ _lastEnter={el:null,t:0}; fn(); }
+  else { _lastEnter={el:e.target,t:now}; toast('もう一度Enterで確定'); }
+  return true;
+}
 function setCLevel(l){ STATE.cLevel=l; renderComposer(); }
 function clearSelection(){ STATE.selected=null; STATE.editing=false; setComposerInput(''); setComposerDeadline(''); renderView(); }
 function commitComposer(){ if(STATE.editing) composerSubmit(); }
@@ -1307,14 +1318,14 @@ function openInput(title, value, placeholder, onok){
   STATE._oninput=onok;
   document.getElementById('modalBox').innerHTML='<div class="mtitle">'+esc(title)+'</div>'+
     '<input class="minput" id="minput" value="'+esc(value||'')+'" placeholder="'+esc(placeholder||'')+'" maxlength="40">'+
-    '<div class="mdesc" style="margin:2px 0 12px">入力欄を2回タップ／Enterで確定</div>'+
+    '<div class="mdesc" style="margin:2px 0 12px">入力欄を2回タップ／Enterを2回で確定</div>'+
     '<button class="mbtn rec" onclick="okInput()">決定</button>'+
     '<button class="mlink" onclick="closeModal()">キャンセル</button>';
   document.getElementById('modal').classList.add('open');
   setTimeout(function(){
     var i=document.getElementById('minput'); if(!i)return;
     i.focus(); i.select();
-    i.onkeydown=function(e){ if(e.key==='Enter'){e.preventDefault();okInput();} else if(e.key==='Escape'){closeModal();} };
+    i.onkeydown=function(e){ if(dblEnter(e,okInput)) return; if(e.key==='Escape'){closeModal();} };
     var last=0;  // タッチでも効く「2回タップで確定」
     i.onclick=function(){ var now=Date.now(); if(now-last<400){ okInput(); } last=now; };
   },40);
