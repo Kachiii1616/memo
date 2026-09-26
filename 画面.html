@@ -883,22 +883,16 @@ function schTimeFor(n){
   while(cur&&cur.parentId&&g++<20){ cur=byId(cur.parentId); if(!cur) break; t=schTimesOf(cur); if(t.length) return {times:t,via:cur.text}; }
   return null;
 }
-// リストの時刻・項目名をタップ：その予定を時間割から外して、時間未設定に戻す
-// まとめ項目（家など）の予定から来ている項目は、まとめ項目の予定ごと外す
+// リストの時刻・項目名をタップ：その予定の編集画面を開く（時間を変える／予定から外す）
+// まとめ項目（家など）の予定から来ている項目は、まとめ項目の予定を開く
 function unscheduleNode(id){
   var n=byId(id); if(!n) return;
   var target=n, bl=schBlocksOf(n), g=0;
   while(!bl.length && target.parentId && g++<20){ target=byId(target.parentId); if(!target) return; bl=schBlocksOf(target); }
   if(!bl.length) return;
-  var times=bl.map(function(b){return String(b.time).slice(0,5);}).join('・');
-  var msg='「'+target.text+'」を '+times+' の予定から外しますか？'+(target!==n?'\n（「'+target.text+'」の予定ごと外れます）':'');
-  openConfirm(msg, function(){
-    var date=STATE.scheduleDate||STATE.today;
-    var rows=bl.map(function(b){return b.sheetRow;}).sort(function(a,b){return b-a;});   // 下の行から消す（行ずれ防止）
-    toast('予定から外しています…');
-    rows.reduce(function(p,r){ return p.then(function(){ return call('deleteScheduleRow',[date,r]); }); }, Promise.resolve())
-      .then(function(d){ if(d) STATE.schedule=d; if(STATE.active===SCHEDULE) renderSchedule(); toast('予定から外しました'); }).catch(failNote);
-  });
+  var b=bl[0];
+  openScheduleEdit(b.sheetRow,b.time,b.title,b.memo);
+  if(target!==n){ var t=document.querySelector('#modalBox .mtitle'); if(t) t.insertAdjacentHTML('afterend','<div class="mdesc" style="margin:-4px 0 8px">「'+esc(target.text)+'」の予定としてまとめて入っています</div>'); }
 }
 function schBlocksOf(n){ return (STATE.schedBlocks||[]).filter(function(b){return schMatch(b,n);}); }
 // 時刻文字列から「時」を取り出す（読めなければnull）
@@ -946,7 +940,7 @@ function openScheduleEdit(sheetRow,time,title,memo){
     '<input id="schTitle" class="minput" maxlength="100" placeholder="予定（例：買い出し）" value="'+esc(title||'')+'" onkeydown="dblEnter(event,saveScheduleEdit)">'+
     '<input id="schMemo" class="minput" maxlength="200" placeholder="メモ（任意）" value="'+esc(memo||'')+'" onkeydown="dblEnter(event,saveScheduleEdit)">'+
     '<button class="mbtn rec" onclick="saveScheduleEdit()">保存</button>'+
-    (STATE._schedRow?'<button class="mbtn" onclick="deleteScheduleEntry()">この予定を削除</button>':'')+
+    (STATE._schedRow?'<button class="mbtn" onclick="deleteScheduleEntry()">予定から外す</button>':'')+
     '<button class="mlink" onclick="closeModal()">キャンセル</button>';
   document.getElementById('modal').classList.add('open');
   setTimeout(function(){ var i=document.getElementById('schTitle'); if(i&&!title) i.focus(); },40);
@@ -963,8 +957,8 @@ function saveScheduleEdit(){
 function deleteScheduleEntry(){
   var date=STATE.scheduleDate||STATE.today, row=STATE._schedRow;
   closeModal();
-  openConfirm('この予定を削除しますか？', function(){
-    call('deleteScheduleRow',[date,row]).then(function(d){ STATE.schedule=d; if(STATE.active===SCHEDULE) renderSchedule(); toast('削除しました'); }).catch(failNote);
+  openConfirm('この予定を時間割から外しますか？', function(){
+    call('deleteScheduleRow',[date,row]).then(function(d){ STATE.schedule=d; if(STATE.active===SCHEDULE) renderSchedule(); toast('予定から外しました'); }).catch(failNote);
   });
 }
 // 予定セルの完了判定（4列目）
@@ -1311,7 +1305,7 @@ function renderDailyTree(tabId,parentId,depth){
     if(isFlagged(n)) h+=dailyCheckRow(n);
     else if(STATE.active===SCHEDULE){
       var pt=schTimesOf(n);
-      h+='<div class="dctx s'+Math.min(depth,1)+(pt.length?' insch':'')+'"><span class="tpick" title="'+(pt.length?'タップで予定から外す':'タップで時間を選んで予定に入れる（下の項目もまとめて表示）')+'" onclick="'+(pt.length?'unscheduleNode':'schedFromTask')+'(\''+jsq(n.id)+'\')">'+
+      h+='<div class="dctx s'+Math.min(depth,1)+(pt.length?' insch':'')+'"><span class="tpick" title="'+(pt.length?'タップで時間を変える／予定から外す':'タップで時間を選んで予定に入れる（下の項目もまとめて表示）')+'" onclick="'+(pt.length?'unscheduleNode':'schedFromTask')+'(\''+jsq(n.id)+'\')">'+
         (pt.length?'<span class="stime">'+esc(pt[0])+'</span><span class="sched">'+esc(n.text)+'</span>':esc(n.text)+'<span class="tadd">🕐</span>')+'</span></div>';
     }
     else h+='<div class="dctx s'+Math.min(depth,1)+'">'+linkify(n.text)+'</div>';
@@ -1327,9 +1321,9 @@ function dailyCheckRow(n){
   var inSch=(STATE.active===SCHEDULE), st=inSch?schTimeFor(n):null;
   return '<div class="dchk'+(on?' done':'')+(st?' insch':'')+'">'+
     // 予定に入れた項目：チェックの丸の代わりに時刻を出し、項目名に横線
-    (st?'<div class="stime" onclick="unscheduleNode(\''+jsq(n.id)+'\')" title="タップで予定から外す　予定：'+esc(st.times.join('・'))+(st.via?'（'+esc(st.via)+'）':'')+'">'+esc(st.times[0])+'</div>'
+    (st?'<div class="stime" onclick="unscheduleNode(\''+jsq(n.id)+'\')" title="タップで時間を変える／予定から外す　予定：'+esc(st.times.join('・'))+(st.via?'（'+esc(st.via)+'）':'')+'">'+esc(st.times[0])+'</div>'
        :'<div class="check'+(on?' on':'')+'" onclick="toggleDailyCheck(\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>')+
-    ico+(inSch?'<span class="t tpick'+(st?' sched':'')+'" title="'+(st?'タップで予定から外す':'タップで時間を選んで予定に入れる')+'" onclick="'+(st?'unscheduleNode':'schedFromTask')+'(\''+jsq(n.id)+'\')">'+esc(n.text)+(st?'':'<span class="tadd">🕐</span>')+'</span>':'<span class="t">'+linkify(n.text)+'</span>')+'</div>';
+    ico+(inSch?'<span class="t tpick'+(st?' sched':'')+'" title="'+(st?'タップで時間を変える／予定から外す':'タップで時間を選んで予定に入れる')+'" onclick="'+(st?'unscheduleNode':'schedFromTask')+'(\''+jsq(n.id)+'\')">'+esc(n.text)+(st?'':'<span class="tadd">🕐</span>')+'</span>':'<span class="t">'+linkify(n.text)+'</span>')+'</div>';
 }
 // ❀その日マークを全部外す：ダブルクリック（2回タップ）で確定。1回だけなら案内のみ
 var _clrTodayAt=0;
