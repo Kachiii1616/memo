@@ -172,6 +172,9 @@
   .bulkbar button{border:1px solid var(--line);background:var(--paper2);cursor:pointer;color:var(--sub);
     font-size:12px;padding:4px 10px;border-radius:8px;line-height:1.2}
   .bulkbar button:hover{border-color:var(--accent);color:var(--ink)}
+  .tbulk{flex:none;border:1px solid var(--line);background:var(--paper2);cursor:pointer;color:var(--sub);font-family:'Zen Kaku Gothic New',sans-serif;
+    font-size:12px;padding:4px 10px;border-radius:8px;line-height:1.2;touch-action:manipulation;user-select:none}
+  .tbulk:hover{border-color:var(--rose);color:var(--ink)}
   .toolbar{display:flex;flex-wrap:wrap;gap:4px;padding:4px 2px 8px 26px}
   .toolbar button{border:1px solid var(--line);background:var(--paper2);cursor:pointer;color:var(--sub);
     font-size:12px;padding:4px 9px;border-radius:8px;line-height:1.2}
@@ -789,7 +792,9 @@ function renderSchedule(){
   }
   // ✦ 今日マークしたタスク（時間割の上に表示。押すとmemo本体も完了・❀/★タップで解除）
   if(flagged.length){
-    html+='<div class="schsub" style="margin-top:8px">✦ 今日マークしたタスク</div>';
+    var todayN=flagged.filter(function(n){return n.today;}).length;
+    html+='<div class="schsub" style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:8px">✦ 今日マークしたタスク'+
+      (todayN?'<button class="tbulk" title="ダブルクリック（2回タップ）で確定" onclick="clearTodayMarksTap()" ondblclick="event.preventDefault()">'+markIcon('today',true)+' 全部外す（'+todayN+'）</button>':'')+'</div>';
     STATE.tabs.forEach(function(t){
       if(!STATE.nodes.some(function(n){return n.tab===t.id&&isFlagged(n);}))return;
       html+='<div class="group-label">'+esc(t.name)+'</div>'+renderDailyTree(t.id,'',0);
@@ -1206,6 +1211,19 @@ function dailyCheckRow(n){
   return '<div class="dchk'+(on?' done':'')+'">'+
     '<div class="check'+(on?' on':'')+'" onclick="toggleDailyCheck(\''+jsq(n.id)+'\')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>'+
     ico+'<span class="t">'+linkify(n.text)+'</span></div>';
+}
+// ❀その日マークを全部外す：ダブルクリック（2回タップ）で確定。1回だけなら案内のみ
+var _clrTodayAt=0;
+function clearTodayMarksTap(){
+  var now=Date.now();
+  if(now-_clrTodayAt>500){ _clrTodayAt=now; toast('ダブルクリック（2回タップ）で❀を全部外します'); return; }
+  _clrTodayAt=0;
+  var ids=STATE.nodes.filter(function(n){return n.today;}).map(function(n){return n.id;});
+  if(!ids.length) return;
+  snap();
+  STATE.nodes.forEach(function(n){ if(n.today) n.today=false; });
+  renderView();
+  call('bulkSetMark',[ids,'none']).then(function(){ toast('❀その日のマークを'+ids.length+'件外しました（「戻る」で戻せます）'); }).catch(failNote);
 }
 // ★/❀ アイコンをタップ：マークを外す（今日の予定・今日のチェックの両方から使える）
 function unmarkNode(id){
