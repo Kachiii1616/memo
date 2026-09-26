@@ -844,14 +844,15 @@ function schRowHtml(b){
     '<div class="check'+(b.done?' on':'')+'" onclick="toggleScheduleDone('+b.i+','+b.sheetRow+')"><svg viewBox="0 0 16 16"><polyline points="3,8.5 6.5,12 13,4"/></svg></div>'+
     '<div class="schtime">'+esc(b.time)+'</div>'+
     '<div class="schbody"><div class="schtitle">'+linkify(b.title)+'</div>'+
-    (b.memo?'<div class="schmemo">'+linkify(b.memo)+'</div>':'')+schChildrenHtml(b.title)+'</div>'+
+    (b.memo?'<div class="schmemo">'+linkify(b.memo)+'</div>':'')+schChildrenHtml(b)+'</div>'+
     '<button class="schedit" title="編集" onclick="editSched('+b.bi+')">✎</button></div>';
 }
 // 予定の内容がまとめ項目（家・デスクワーク等）なら、その下の項目を一覧で出す（❀付きを優先、無ければ未完了ぜんぶ）
-function schChildrenHtml(title){
-  var p=STATE.nodes.filter(function(n){ return n.text===title && hasKids(n); });
+function schChildrenHtml(b){
+  var p=STATE.nodes.filter(function(n){ return hasKids(n) && schMatch(b,n); });
   if(!p.length) return '';
-  p=p.filter(function(n){return subtreeHasFlag(n);})[0]||p[0];
+  // 同じ名前が複数タブにあるとき：❀付きを含むもの → 定期購入（買い物リスト）以外 の順で選ぶ
+  p=p.filter(function(n){return subtreeHasFlag(n);})[0]||p.filter(function(n){return !/定期購入/.test(tabName(n.tab));})[0]||p[0];
   var leaves=[]; (function walk(id){ STATE.nodes.filter(function(c){return c.parentId===id;}).sort(function(a,b){return a.order-b.order;})
     .forEach(function(c){ if(hasKids(c)) walk(c.id); else leaves.push(c); }); })(p.id);
   var fl=leaves.filter(isFlagged); if(!fl.length) fl=leaves.filter(function(c){return !c.done;});
@@ -861,14 +862,23 @@ function schChildrenHtml(title){
   }).join('')+'</div>';
 }
 // 予定に入っている時刻（内容＝項目名が一致するもの）
-function schTimesOf(text){
-  return (STATE.schedBlocks||[]).filter(function(b){return b.title===text;}).map(function(b){return String(b.time).slice(0,5);});
+function schTimesOf(n){
+  return (STATE.schedBlocks||[]).filter(function(b){return schMatch(b,n);}).map(function(b){return String(b.time).slice(0,5);});
+}
+// 予定と項目の対応：名前が同じ＋メモ先頭のタブ名（「生活 / 家事 / 30分」の「生活」）が項目のタブと一致
+// メモにタブ名が無い予定（手入力など）は名前だけで判定。ただし定期購入タブは対象外
+function schMatch(b,n){
+  if(b.title!==n.text) return false;
+  var first=String(b.memo||'').split('/')[0].trim();
+  var isTab=STATE.tabs.some(function(t){return t.name===first;});
+  if(isTab) return tabName(n.tab)===first;
+  return !/定期購入/.test(tabName(n.tab));
 }
 // その項目の予定時刻。自分に無ければ、まとめ項目（親）の予定を引き継ぐ
 function schTimeFor(n){
-  var t=schTimesOf(n.text); if(t.length) return {times:t,via:''};
+  var t=schTimesOf(n); if(t.length) return {times:t,via:''};
   var cur=n, g=0;
-  while(cur&&cur.parentId&&g++<20){ cur=byId(cur.parentId); if(!cur) break; t=schTimesOf(cur.text); if(t.length) return {times:t,via:cur.text}; }
+  while(cur&&cur.parentId&&g++<20){ cur=byId(cur.parentId); if(!cur) break; t=schTimesOf(cur); if(t.length) return {times:t,via:cur.text}; }
   return null;
 }
 function schPill(times,via){ return '<span class="schset" title="予定に入っています">✓ '+esc(times.join('・'))+(via?'（'+esc(via)+'）':'')+'</span>'; }
@@ -1281,7 +1291,7 @@ function renderDailyTree(tabId,parentId,depth){
     if(!subtreeHasFlag(n))return;
     if(isFlagged(n)) h+=dailyCheckRow(n);
     else if(STATE.active===SCHEDULE){
-      var pt=schTimesOf(n.text);
+      var pt=schTimesOf(n);
       h+='<div class="dctx s'+Math.min(depth,1)+(pt.length?' insch':'')+'"><span class="tpick" title="タップで時間を選んで予定に入れる（下の項目もまとめて表示）" onclick="schedFromTask(\''+jsq(n.id)+'\')">'+esc(n.text)+
         (pt.length?schPill(pt,''):'<span class="tadd">🕐</span>')+'</span></div>';
     }
