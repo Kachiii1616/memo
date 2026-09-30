@@ -160,6 +160,7 @@ function getData(dateStr) {
   ensurePrioritySheet_();     // 「優先順位」シートが無ければ一度だけ用意（AI連携の土台）
   ensurePolicySheet_();       // 「方針」シート（全体の優先ルール）が無ければ一度だけ用意
   ensureScheduleConfig_();    // 「スケジュール設定」シート（予定の組み方）が無ければ一度だけ用意
+  restoreOkaneDekitara_();    // 【一度だけ】誤って消した「お金ができたら」の中身をスクショから復元
   return {
     today: today,
     tabs: readTabs_(),
@@ -1082,6 +1083,43 @@ function ensureSubscriptionTab_() {
     if (rows.length) nsh.getRange(nsh.getLastRow() + 1, 1, rows.length, 10).setValues(rows);
   });
   props.setProperty('SUBS_TAB_DONE', '1');
+}
+
+// ===== 【一度だけ】「お金ができたら」の中身を復元（2026-09-30 誤削除分・スクショより）=====
+// 親ノード（お金ができたら／お金できたら）の直下に、同名が無いものだけ追加する（重複しない）。
+const OKANE_RESTORE_ITEMS = [
+  ['Amazon', 'マウスパッド', 'ブライト漂白剤ボトル', 'パソコンケース', 'メガネケース'],
+  ['ニトリ', '珪藻土小・大', 'フライパン'],
+  ['無印', 'ゴミ箱'],
+  ['雑貨屋', '化粧品ポーチ'],
+  'バドミントン用携帯スタンド', 'キーケース', '仕事用カーディガン', '扇風機', 'マスク', '日傘',
+  'デスクチェア', 'モニター', 'スーツケース', 'パウダーパフ予備買う', '突っ張り棒', 'ベッド',
+  'ヘアマスカラ', 'ヘアスプレー（トリエ１０）', 'シルク枕（CocoSILK）', 'バドミントン（ユニフォーム・カバン）'
+];
+function restoreOkaneDekitara_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('OKANE_RESTORE_DONE')) return;
+  withLock_(function () {
+    const nodes = readNodes_();
+    const parent = nodes.filter(function (n) { return /^お金が?できたら$/.test(String(n.text).trim()); })[0];
+    if (!parent) { console.warn('restoreOkaneDekitara_: 親ノードが見つからない'); return; }
+    const kids = nodes.filter(function (n) { return n.parentId === parent.id; });
+    const have = {};
+    kids.forEach(function (n) { have[String(n.text).trim()] = true; });
+    let order = kids.reduce(function (m, n) { return Math.max(m, n.order); }, -1) + 1;
+    const rows = [];
+    OKANE_RESTORE_ITEMS.forEach(function (it) {
+      const text = typeof it === 'string' ? it : it[0];
+      if (have[text]) return;
+      const id = newId_();
+      rows.push([id, parent.tab, parent.id, text, order++, false, false, false, '', false]);
+      if (typeof it !== 'string') collectSeedRows_(rows, parent.tab, id, it.slice(1));
+    });
+    const nsh = nodeSheet_();
+    if (rows.length) nsh.getRange(nsh.getLastRow() + 1, 1, rows.length, 10).setValues(rows);
+    if (parent.collapsed) nsh.getRange(findRow_(nsh, parent.id), 7).setValue(false);
+    props.setProperty('OKANE_RESTORE_DONE', '1');
+  });
 }
 
 // ===== 方針シート（全体の優先ルール）=======================================
