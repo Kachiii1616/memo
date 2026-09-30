@@ -1098,27 +1098,48 @@ const OKANE_RESTORE_ITEMS = [
 ];
 function restoreOkaneDekitara_() {
   const props = PropertiesService.getScriptProperties();
-  if (props.getProperty('OKANE_RESTORE_DONE')) return;
+  if (props.getProperty('OKANE_RESTORE_DONE2')) return;
   withLock_(function () {
     const nodes = readNodes_();
-    const parent = nodes.filter(function (n) { return /^お金が?できたら$/.test(String(n.text).trim()); })[0];
-    if (!parent) { console.warn('restoreOkaneDekitara_: 親ノードが見つからない'); return; }
+    const norm = function (t) { return String(t || '').replace(/[\s　]/g, ''); };
+    const isOkane = function (n) { const t = norm(n.text); return t.indexOf('お金') >= 0 && t.indexOf('できたら') >= 0; };
+    const nsh = nodeSheet_();
+    // 親ノードを探す（表記ゆれ・前後の空白も許す）。複数あれば子が多い方。
+    let parent = nodes.filter(isOkane).sort(function (a, b) {
+      const ca = nodes.filter(function (n) { return n.parentId === a.id; }).length;
+      const cb = nodes.filter(function (n) { return n.parentId === b.id; }).length;
+      return cb - ca;
+    })[0];
+    if (!parent) {
+      // 見出しごと消えていた場合：生活 > デスクワーク > 購入 の下（無ければ生活タブ直下）に作り直す
+      const life = readTabs_().filter(function (t) { return String(t.name).trim() === '生活'; })[0];
+      if (!life) { console.warn('restoreOkaneDekitara_: 生活タブが見つからない'); return; }
+      const child = function (pid, name) {
+        return nodes.filter(function (n) { return n.tab === life.id && n.parentId === pid && norm(n.text) === name; })[0];
+      };
+      const desk = child('', 'デスクワーク');
+      const buy = desk && child(desk.id, '購入');
+      const pid = buy ? buy.id : '';
+      const order = nodes.filter(function (n) { return n.tab === life.id && n.parentId === pid; })
+        .reduce(function (m, n) { return Math.max(m, n.order); }, -1) + 1;
+      parent = { id: newId_(), tab: life.id, parentId: pid, text: 'お金ができたら', order: order, collapsed: false };
+      nsh.appendRow([parent.id, parent.tab, pid, parent.text, order, false, false, false, '', false]);
+    }
     const kids = nodes.filter(function (n) { return n.parentId === parent.id; });
     const have = {};
-    kids.forEach(function (n) { have[String(n.text).trim()] = true; });
+    kids.forEach(function (n) { have[norm(n.text)] = true; });
     let order = kids.reduce(function (m, n) { return Math.max(m, n.order); }, -1) + 1;
     const rows = [];
     OKANE_RESTORE_ITEMS.forEach(function (it) {
       const text = typeof it === 'string' ? it : it[0];
-      if (have[text]) return;
+      if (have[norm(text)]) return;
       const id = newId_();
       rows.push([id, parent.tab, parent.id, text, order++, false, false, false, '', false]);
       if (typeof it !== 'string') collectSeedRows_(rows, parent.tab, id, it.slice(1));
     });
-    const nsh = nodeSheet_();
     if (rows.length) nsh.getRange(nsh.getLastRow() + 1, 1, rows.length, 10).setValues(rows);
     if (parent.collapsed) nsh.getRange(findRow_(nsh, parent.id), 7).setValue(false);
-    props.setProperty('OKANE_RESTORE_DONE', '1');
+    props.setProperty('OKANE_RESTORE_DONE2', '1');
   });
 }
 
