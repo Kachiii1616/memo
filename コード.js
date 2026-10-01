@@ -1098,37 +1098,44 @@ const OKANE_RESTORE_ITEMS = [
 ];
 function restoreOkaneDekitara_() {
   const props = PropertiesService.getScriptProperties();
-  if (props.getProperty('OKANE_RESTORE_DONE2')) return;
+  if (props.getProperty('OKANE_RESTORE_DONE3')) return;
   withLock_(function () {
-    const nodes = readNodes_();
-    const norm = function (t) { return String(t || '').replace(/[\s　]/g, ''); };
-    const isOkane = function (n) { const t = norm(n.text); return t.indexOf('お金') >= 0 && t.indexOf('できたら') >= 0; };
     const nsh = nodeSheet_();
-    // 親ノードを探す（表記ゆれ・前後の空白も許す）。複数あれば子が多い方。
-    let parent = nodes.filter(isOkane).sort(function (a, b) {
-      const ca = nodes.filter(function (n) { return n.parentId === a.id; }).length;
-      const cb = nodes.filter(function (n) { return n.parentId === b.id; }).length;
-      return cb - ca;
-    })[0];
-    if (!parent) {
-      // 見出しごと消えていた場合：生活 > デスクワーク > 購入 の下（無ければ生活タブ直下）に作り直す
-      const life = readTabs_().filter(function (t) { return String(t.name).trim() === '生活'; })[0];
-      if (!life) { console.warn('restoreOkaneDekitara_: 生活タブが見つからない'); return; }
-      const child = function (pid, name) {
-        return nodes.filter(function (n) { return n.tab === life.id && n.parentId === pid && norm(n.text) === name; })[0];
-      };
-      const desk = child('', 'デスクワーク');
-      const buy = desk && child(desk.id, '購入');
-      const pid = buy ? buy.id : '';
-      const order = nodes.filter(function (n) { return n.tab === life.id && n.parentId === pid; })
-        .reduce(function (m, n) { return Math.max(m, n.order); }, -1) + 1;
-      parent = { id: newId_(), tab: life.id, parentId: pid, text: 'お金ができたら', order: order, collapsed: false };
-      nsh.appendRow([parent.id, parent.tab, pid, parent.text, order, false, false, false, '', false]);
+    // 1回目の復元が、どのタブにも属さない古い残骸の「お金できたら」(Nmqvy97n6carp)へ入ってしまった分を消す
+    const stray = {};
+    readNodes_().forEach(function (n) {
+      if (n.parentId === 'Nmqvy97n6carp' && n.id.indexOf('Nmuo5yp5h') === 0) stray[n.id] = true;
+    });
+    if (Object.keys(stray).length) {
+      const v = nsh.getDataRange().getValues();
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (let i = 1; i < v.length; i++) {
+          const id = String(v[i][0]);
+          if (!stray[id] && stray[String(v[i][2])]) { stray[id] = true; grew = true; }
+        }
+      }
+      for (let i = v.length - 1; i >= 1; i--) if (stray[String(v[i][0])]) nsh.deleteRow(i + 1);
     }
-    const kids = nodes.filter(function (n) { return n.parentId === parent.id; });
+
+    const nodes = readNodes_();
+    const live = {};
+    readTabs_().forEach(function (t) { live[t.id] = true; });
+    const norm = function (t) { return String(t || '').replace(/[\s　]/g, ''); };
+    // 実在するタブの中の「お金ができたら」だけを対象にする（生活タブを優先）
+    const cands = nodes.filter(function (n) {
+      const t = norm(n.text);
+      return live[n.tab] && t.indexOf('お金') >= 0 && t.indexOf('できたら') >= 0;
+    }).sort(function (a, b) { return (b.tab === 'Nmqrnkvoo2pkr') - (a.tab === 'Nmqrnkvoo2pkr'); });
+    const parent = cands[0];
+    if (!parent) { console.warn('restoreOkaneDekitara_: 親ノードが見つからない'); return; }
+    const kids = nodes.filter(function (n) { return n.parentId === parent.id; })
+      .sort(function (a, b) { return a.order - b.order; });
     const have = {};
     kids.forEach(function (n) { have[norm(n.text)] = true; });
-    let order = kids.reduce(function (m, n) { return Math.max(m, n.order); }, -1) + 1;
+    // スクショの順に先頭へ並べ、いま残っている項目はその後ろへ
+    let order = 0;
     const rows = [];
     OKANE_RESTORE_ITEMS.forEach(function (it) {
       const text = typeof it === 'string' ? it : it[0];
@@ -1138,8 +1145,9 @@ function restoreOkaneDekitara_() {
       if (typeof it !== 'string') collectSeedRows_(rows, parent.tab, id, it.slice(1));
     });
     if (rows.length) nsh.getRange(nsh.getLastRow() + 1, 1, rows.length, 10).setValues(rows);
+    kids.forEach(function (n) { const r = findRow_(nsh, n.id); if (r > 0) nsh.getRange(r, 5).setValue(order++); });
     if (parent.collapsed) nsh.getRange(findRow_(nsh, parent.id), 7).setValue(false);
-    props.setProperty('OKANE_RESTORE_DONE2', '1');
+    props.setProperty('OKANE_RESTORE_DONE3', '1');
   });
 }
 
