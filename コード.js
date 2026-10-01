@@ -1098,7 +1098,7 @@ const OKANE_RESTORE_ITEMS = [
 ];
 function restoreOkaneDekitara_() {
   const props = PropertiesService.getScriptProperties();
-  if (props.getProperty('OKANE_RESTORE_DONE3')) return;
+  if (props.getProperty('OKANE_RESTORE_DONE4')) return;
   withLock_(function () {
     const nsh = nodeSheet_();
     // 1回目の復元が、どのタブにも属さない古い残骸の「お金できたら」(Nmqvy97n6carp)へ入ってしまった分を消す
@@ -1147,7 +1147,7 @@ function restoreOkaneDekitara_() {
     if (rows.length) nsh.getRange(nsh.getLastRow() + 1, 1, rows.length, 10).setValues(rows);
     kids.forEach(function (n) { const r = findRow_(nsh, n.id); if (r > 0) nsh.getRange(r, 5).setValue(order++); });
     if (parent.collapsed) nsh.getRange(findRow_(nsh, parent.id), 7).setValue(false);
-    props.setProperty('OKANE_RESTORE_DONE3', '1');
+    props.setProperty('OKANE_RESTORE_DONE4', '1');
   });
 }
 
