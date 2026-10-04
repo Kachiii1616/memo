@@ -931,6 +931,7 @@ function renderSchedule(){
   }
   if(he<23) html+='<button class="schaddrow" onclick="schAddHour('+he+')">＋ '+pad2(he+1)+':00 の欄を追加</button>';
   untimed.forEach(function(b){ html+=schRowHtml(b); });
+  html+='<button class="schaddrow" onclick="schAddFree()">＋ 枠を追加（時間を選んで予定を書く）</button>';
   html+='</div>';
   html+='<div class="hint">○＝完了（memoの該当タスクにも取り消し線）／<b>✎＝あとから編集</b>（時間・内容・メモ・削除）／<b>空いている時間をタップ＝予定を書く</b>／<b>＋30分</b>＝その時間の30分の欄を追加／<b>＋ 〇〇:00 の欄を追加</b>＝朝・夜の時間を増やす。</div>';
   html+='</div>';
@@ -1072,6 +1073,15 @@ function schedFromTask(id){
   while(m<=23*60+30 && used[pad2(Math.floor(m/60))+':'+pad2(m%60)]) m+=30;
   if(m>23*60+30) m=23*60+30;
   openScheduleEdit(0, pad2(Math.floor(m/60))+':'+pad2(m%60), n.text, tabName(n.tab));
+}
+// 「枠を追加」：空いている30分枠（今日なら今より後）を初期値に、時間を選んで新規追加
+function schAddFree(){
+  var used={}; (STATE.schedBlocks||[]).forEach(function(b){ used[String(b.time).slice(0,5)]=true; });
+  var nd=new Date(), m=Math.ceil((nd.getHours()*60+nd.getMinutes())/30)*30;
+  if((STATE.scheduleDate||STATE.today)!==STATE.today) m=7*60;
+  while(m<=23*60+30 && used[pad2(Math.floor(m/60))+':'+pad2(m%60)]) m+=30;
+  if(m>23*60+30) m=23*60+30;
+  editSchedNew(pad2(Math.floor(m/60))+':'+pad2(m%60));
 }
 // 空き時間をタップ：その時間で新規追加
 function editSchedNew(t){ openScheduleEdit(0,t,'',''); }
