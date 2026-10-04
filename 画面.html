@@ -1075,29 +1075,52 @@ function schedFromTask(id){
 function editSchedNew(t){ openScheduleEdit(0,t,'',''); }
 function openScheduleEdit(sheetRow,time,title,memo){
   STATE._schedRow=Number(sheetRow)||0;
-  var opts='';
-  var std=/^([01]?\d|2[0-3]):(00|30)$/.test(time||'');
-  if(time&&!std) opts+='<option value="'+esc(time)+'" selected>'+esc(time)+'</option>';
-  for(var h=5;h<=23;h++) ['00','30'].forEach(function(mm){ var t=pad2(h)+':'+mm; opts+='<option value="'+t+'"'+(time===t?' selected':'')+'>'+t+'</option>'; });
+  var date=STATE.scheduleDate||STATE.today;
+  STATE._schedDate=date;
+  var h0=parseInt(String(time||'').split(':')[0],10);
   document.getElementById('modalBox').innerHTML=
     '<div class="mtitle">'+(STATE._schedRow?'予定を編集':'予定を追加')+'</div>'+
-    '<div class="mscope">時間：<select id="schTime" class="minput" style="width:auto;margin:0;padding:8px 12px">'+opts+'</select></div>'+
+    '<div class="mscope">日にち：<input id="schDate" type="date" class="minput" style="width:auto;margin:0;padding:8px 12px" value="'+esc(date)+'"></div>'+
+    '<div class="mscope">時間：<select id="schTime" class="minput" style="width:auto;margin:0;padding:8px 12px" onchange="schTimeChange(this)">'+schTimeOpts(time,!isNaN(h0)&&h0<5)+'</select></div>'+
     '<input id="schTitle" class="minput" maxlength="100" placeholder="予定（例：買い出し）" value="'+esc(title||'')+'" onkeydown="dblEnter(event,saveScheduleEdit)">'+
     '<input id="schMemo" class="minput" maxlength="200" placeholder="メモ（任意）" value="'+esc(memo||'')+'" onkeydown="dblEnter(event,saveScheduleEdit)">'+
     '<button class="mbtn rec" onclick="saveScheduleEdit()">保存</button>'+
     (STATE._schedRow?'<button class="mbtn" onclick="deleteScheduleEntry()">予定から外す</button>':'')+
     '<button class="mlink" onclick="closeModal()">キャンセル</button>';
   document.getElementById('modal').classList.add('open');
+  var ts=document.getElementById('schTime'); if(ts) ts.dataset.prev=ts.value;
   setTimeout(function(){ var i=document.getElementById('schTitle'); if(i&&!title) i.focus(); },40);
 }
+// 時間の選択肢：ふだんは 05:00〜23:30。all=true（「24時間表示」を選んだ時）は 00:00〜23:30 すべて
+function schTimeOpts(time,all){
+  var opts='', std=/^([01]?\d|2[0-3]):(00|30)$/.test(time||''), hs=all?0:5;
+  if(time&&(!std||parseInt(time,10)<hs)) opts+='<option value="'+esc(time)+'" selected>'+esc(time)+'</option>';
+  for(var h=hs;h<=23;h++) ['00','30'].forEach(function(mm){ var t=pad2(h)+':'+mm; opts+='<option value="'+t+'"'+(time===t?' selected':'')+'>'+t+'</option>'; });
+  if(!all) opts+='<option value="__all">🕛 24時間表示にする…</option>';
+  return opts;
+}
+function schTimeChange(sel){
+  if(sel.value!=='__all') { sel.dataset.prev=sel.value; return; }
+  var prev=sel.dataset.prev||'00:00';
+  sel.innerHTML=schTimeOpts(prev,true); sel.value=prev;
+}
 function saveScheduleEdit(){
-  var te=document.getElementById('schTime'), ti=document.getElementById('schTitle'), me=document.getElementById('schMemo');
+  var te=document.getElementById('schTime'), ti=document.getElementById('schTitle'), me=document.getElementById('schMemo'), de=document.getElementById('schDate');
   var time=te?te.value:'', title=ti?ti.value.trim():'', memo=me?me.value.trim():'';
+  if(time==='__all') time='';
   if(!title){ toast('予定の内容を入れてください'); return; }
-  var date=STATE.scheduleDate||STATE.today, row=STATE._schedRow;
+  var shown=STATE._schedDate||STATE.scheduleDate||STATE.today, row=STATE._schedRow;
+  var date=(de&&de.value)||shown;
   closeModal(); toast('保存中…');
-  var p=row? call('updateScheduleRow',[date,row,time,title,memo]) : call('addScheduleRow',[date,time,title,memo]);
-  p.then(function(d){ STATE.schedule=d; if(STATE.active===SCHEDULE) renderSchedule(); toast('予定を保存しました'); }).catch(failNote);
+  var p;
+  if(date===shown) p=row? call('updateScheduleRow',[date,row,time,title,memo]) : call('addScheduleRow',[date,time,title,memo]);
+  else {   // ほかの日に入れる／移す：その日に追加 →（編集なら）元の日から外す → 表示中の日を読み直す
+    p=call('addScheduleRow',[date,time,title,memo]).then(function(){
+      return row? call('deleteScheduleRow',[shown,row]) : call('getSchedule',[shown]);
+    });
+  }
+  p.then(function(d){ STATE.schedule=d; if(STATE.active===SCHEDULE) renderSchedule();
+    toast(date===shown?'予定を保存しました':date.slice(5).replace('-','/')+' の予定に入れました'); }).catch(failNote);
 }
 function deleteScheduleEntry(){
   var date=STATE.scheduleDate||STATE.today, row=STATE._schedRow;
