@@ -919,15 +919,17 @@ function renderSchedule(){
   blocks.forEach(function(b,bi){ b.bi=bi; var h=schHour(b.time); if(h==null) untimed.push(b); else (timed[h]=timed[h]||[]).push(b); });
   var ex=schExtra(), hs=Math.min(7,ex.hs), he=Math.max(22,ex.he);
   Object.keys(timed).forEach(function(k){ k=+k; if(k<hs)hs=k; if(k>he)he=k; });
+  // 前後に1時間ぶんの空き欄をいつも出しておく（ボタンで増やすと、その外側にまた1時間出る）
+  hs=Math.max(0,hs-1); he=Math.min(23,he+1);
   html+='<div class="schlist">';
-  if(hs>0) html+='<button class="schaddrow" onclick="schAddHour('+(hs-1)+')">＋ '+pad2(hs-1)+':00 の欄を追加</button>';
+  if(hs>0) html+='<button class="schaddrow" onclick="schAddHour('+hs+')">＋ '+pad2(hs-1)+':00 の欄を追加</button>';
   for(var h=hs;h<=he;h++){
     var list=timed[h]||[], hasHalf=list.some(function(b){return /:30/.test(b.time);}), halfOpen=ex.half.indexOf(h)>=0;
     if(list.length) list.forEach(function(b){ html+=schRowHtml(b); });
     else html+=schSlotHtml(h,'00',!hasHalf&&!halfOpen);
     if(halfOpen&&!hasHalf) html+=schSlotHtml(h,'30',false);
   }
-  if(he<23) html+='<button class="schaddrow" onclick="schAddHour('+(he+1)+')">＋ '+pad2(he+1)+':00 の欄を追加</button>';
+  if(he<23) html+='<button class="schaddrow" onclick="schAddHour('+he+')">＋ '+pad2(he+1)+':00 の欄を追加</button>';
   untimed.forEach(function(b){ html+=schRowHtml(b); });
   html+='</div>';
   html+='<div class="hint">○＝完了（memoの該当タスクにも取り消し線）／<b>✎＝あとから編集</b>（時間・内容・メモ・削除）／<b>空いている時間をタップ＝予定を書く</b>／<b>＋30分</b>＝その時間の30分の欄を追加／<b>＋ 〇〇:00 の欄を追加</b>＝朝・夜の時間を増やす。</div>';
@@ -1077,37 +1079,28 @@ function openScheduleEdit(sheetRow,time,title,memo){
   STATE._schedRow=Number(sheetRow)||0;
   var date=STATE.scheduleDate||STATE.today;
   STATE._schedDate=date;
-  var h0=parseInt(String(time||'').split(':')[0],10);
   document.getElementById('modalBox').innerHTML=
     '<div class="mtitle">'+(STATE._schedRow?'予定を編集':'予定を追加')+'</div>'+
     '<div class="mscope">日にち：<input id="schDate" type="date" class="minput" style="width:auto;margin:0;padding:8px 12px" value="'+esc(date)+'"></div>'+
-    '<div class="mscope">時間：<select id="schTime" class="minput" style="width:auto;margin:0;padding:8px 12px" onchange="schTimeChange(this)">'+schTimeOpts(time,!isNaN(h0)&&h0<5)+'</select></div>'+
+    '<div class="mscope">時間：<select id="schTime" class="minput" style="width:auto;margin:0;padding:8px 12px">'+schTimeOpts(time)+'</select></div>'+
     '<input id="schTitle" class="minput" maxlength="100" placeholder="予定（例：買い出し）" value="'+esc(title||'')+'" onkeydown="dblEnter(event,saveScheduleEdit)">'+
     '<input id="schMemo" class="minput" maxlength="200" placeholder="メモ（任意）" value="'+esc(memo||'')+'" onkeydown="dblEnter(event,saveScheduleEdit)">'+
     '<button class="mbtn rec" onclick="saveScheduleEdit()">保存</button>'+
     (STATE._schedRow?'<button class="mbtn" onclick="deleteScheduleEntry()">予定から外す</button>':'')+
     '<button class="mlink" onclick="closeModal()">キャンセル</button>';
   document.getElementById('modal').classList.add('open');
-  var ts=document.getElementById('schTime'); if(ts) ts.dataset.prev=ts.value;
   setTimeout(function(){ var i=document.getElementById('schTitle'); if(i&&!title) i.focus(); },40);
 }
-// 時間の選択肢：ふだんは 05:00〜23:30。all=true（「24時間表示」を選んだ時）は 00:00〜23:30 すべて
-function schTimeOpts(time,all){
-  var opts='', std=/^([01]?\d|2[0-3]):(00|30)$/.test(time||''), hs=all?0:5;
-  if(time&&(!std||parseInt(time,10)<hs)) opts+='<option value="'+esc(time)+'" selected>'+esc(time)+'</option>';
-  for(var h=hs;h<=23;h++) ['00','30'].forEach(function(mm){ var t=pad2(h)+':'+mm; opts+='<option value="'+t+'"'+(time===t?' selected':'')+'>'+t+'</option>'; });
-  if(!all) opts+='<option value="__all">🕛 24時間表示にする…</option>';
+// 時間の選択肢：00:00〜23:30 すべて
+function schTimeOpts(time){
+  var opts='', std=/^([01]?\d|2[0-3]):(00|30)$/.test(time||'');
+  if(time&&!std) opts+='<option value="'+esc(time)+'" selected>'+esc(time)+'</option>';
+  for(var h=0;h<=23;h++) ['00','30'].forEach(function(mm){ var t=pad2(h)+':'+mm; opts+='<option value="'+t+'"'+(time===t?' selected':'')+'>'+t+'</option>'; });
   return opts;
-}
-function schTimeChange(sel){
-  if(sel.value!=='__all') { sel.dataset.prev=sel.value; return; }
-  var prev=sel.dataset.prev||'00:00';
-  sel.innerHTML=schTimeOpts(prev,true); sel.value=prev;
 }
 function saveScheduleEdit(){
   var te=document.getElementById('schTime'), ti=document.getElementById('schTitle'), me=document.getElementById('schMemo'), de=document.getElementById('schDate');
   var time=te?te.value:'', title=ti?ti.value.trim():'', memo=me?me.value.trim():'';
-  if(time==='__all') time='';
   if(!title){ toast('予定の内容を入れてください'); return; }
   var shown=STATE._schedDate||STATE.scheduleDate||STATE.today, row=STATE._schedRow;
   var date=(de&&de.value)||shown;
